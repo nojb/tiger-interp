@@ -307,8 +307,12 @@ and letfuns tenv venv funs =
       (function_name func)
       (function_signature tenv func) in
 
-  let update_function fn body =
-    assert false in
+  let update_function fn venv body =
+    match fn.Tiger_env.fn_desc with
+    | Tiger_env.User p ->
+        p.proc_body <- body;
+        p.proc_frame_size <- Tiger_env.frame_size venv
+    | _ -> assert false in
 
   let define_function venv func =
     let fn = Tiger_env.find_function venv (fst func.fun_name) in
@@ -317,7 +321,7 @@ and letfuns tenv venv funs =
     List.iter2 (fun ((x, _), _) t ->
       ignore (Tiger_env.add_variable venv x t)) func.fun_args ts;
     let body = exp_with_type tenv venv false func.fun_body t in
-    update_function fn body in
+    update_function fn venv body in
 
   let venv = Tiger_env.new_scope venv in
   List.iter (declare_function venv) funs;

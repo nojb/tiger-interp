@@ -65,7 +65,7 @@ let find_variable env name =
 
 let add_function env name sg =
   let dummy_desc = { proc_frame_size = 0; proc_body = Cquote Vunit; proc_depth =
-    env.env_depth } in
+    env.env_depth + 1 } in
   env.env_bindings <-
     M.add name (Sfunction {fn_signature = sg; fn_desc = User dummy_desc}) env.env_bindings
 
