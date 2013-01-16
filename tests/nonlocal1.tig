@@ -1,0 +1,1 @@
+let var a := 1729 function g () : int = a in printi(g ()) end

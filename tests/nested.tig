@@ -1,0 +1,3 @@
+let function f ( x : int ) : int = let function g () : int = 18 in x + g() end
+in f ( 10) end
+
