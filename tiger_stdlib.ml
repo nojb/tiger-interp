@@ -1,7 +1,7 @@
 open Tiger_code
 
 let tiger_print = function
-  | [| Vstring s |] -> print_string s; Vunit
+  | [| Vstring s |] -> print_string s; flush stdout; Vunit
   | _ -> assert false
 
 let tiger_printi = function

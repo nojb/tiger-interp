@@ -55,7 +55,6 @@ let add_variable env name ty =
   env.env_bindings <-
     M.add name (Svariable {var_type = ty; var_depth = env.env_depth;
       var_frame_index = idx}) env.env_bindings;
-  Printf.eprintf "VAR %s %d %d" name env.env_depth idx;
   env.env_depth, idx
 
 let find_variable env name =

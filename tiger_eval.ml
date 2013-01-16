@@ -2,7 +2,8 @@ open Tiger_code
 
 let load v1 v2 =
   match v1, v2 with
-  | Varray a, Vint n -> a.(n)
+  | Varray a, Vint n ->
+      a.(n)
   | _ -> assert false
 
 let store v1 v2 v3 =
@@ -69,7 +70,6 @@ type display =
   value array array
 
 let get disp d i =
-  Printf.eprintf "get: %d %d\n" d i;
   disp.(d).(i)
 
 let set disp d i v =
@@ -162,7 +162,8 @@ and eval disp = function
       f (Array.map (eval disp) ea)
 
 let run (max_static_depth, frame_size, e) =
-  Printf.eprintf "run: max_static_depth = %d frame_size = %d\n" max_static_depth frame_size;
+  (* Printf.eprintf "run: max_static_depth = %d frame_size = %d\n"
+   * max_static_depth frame_size; *)
   let disp = Array.make (max_static_depth + 1) [| |] in
   disp.(0) <- Array.make frame_size Vunit;
   eval disp e

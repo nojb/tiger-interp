@@ -167,14 +167,22 @@ and type_exp tenv venv inloop (e, loc) =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cmul (e1, e2), TIGint
-  (* | Ebinop (x, Op_eq, y) ->
+  | Ebinop (x, Op_eq, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
-      UTbinop (e1, Op_eq, e2), TIGint
+      Cicmp (e1, Ceq, e2), TIGint
   | Ebinop (x, Op_leq, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
-      UTbinop (e1, Op_leq, e2), TIGint *)
+      Cicmp (e1, Cle, e2), TIGint
+  | Ebinop (x, Op_and, y) ->
+      let e1 = int_exp tenv venv inloop x in
+      let e2 = int_exp tenv venv inloop y in
+      Candalso (e1, e2), TIGint
+  | Ebinop (x, Op_or, y) ->
+      let e1 = int_exp tenv venv inloop x in
+      let e2 = int_exp tenv venv inloop y in
+      Corelse (e1, e2), TIGint
   | Ebinop _ ->
       failwith "binop not implemented"
   (* | P.Eassign (v, (P.Enil, _)) -> FIXME NIL FIXME
