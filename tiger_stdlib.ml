@@ -1,7 +1,7 @@
 open Tiger_code
 
 let tiger_print = function
-  | [| Vstring s |] -> print_string s; flush stdout; Vunit
+  | [| Vstring s |] -> print_string s; Vunit
   | _ -> assert false
 
 let tiger_printi = function
@@ -44,5 +44,5 @@ let tiger_not = function
   | _ -> assert false
 
 let tiger_exit = function
-  | [| Vint i |] -> exit i
+  | [| Vint i |] -> raise (Exit i)
   | _ -> assert false

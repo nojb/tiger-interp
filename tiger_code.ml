@@ -42,6 +42,11 @@ and proc = {
 
 and prim =
   value array -> value
+
+exception Break
+exception Nil
+exception Exit of int
+
 let rec string_of_value = function (* loops if circular data type *)
   | Vunit -> ""
   | Vint n -> string_of_int n

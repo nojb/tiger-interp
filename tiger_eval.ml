@@ -3,16 +3,14 @@ open Tiger_code
 let load v1 v2 =
   match v1, v2 with
   | Varray a, Vint n ->
+      Printf.eprintf "load: %d\n%!" n;
       a.(n)
   | _ -> assert false
 
 let store v1 v2 v3 =
   match v1, v2 with
-  | Varray a, Vint n -> a.(n) <- v3; Vunit
+  | Varray a, Vint n -> a.(n) <- v3
   | _ -> assert false
-
-exception Break
-exception Nil (* line number where access occured *)
 
 let getf v1 i =
   match v1 with
@@ -23,7 +21,7 @@ let getf v1 i =
 let setf v1 i v2 =
   match v1 with
   | Vrecord None -> raise Nil
-  | Vrecord (Some a) -> a.(i) <- v2; Vunit
+  | Vrecord (Some a) -> a.(i) <- v2
   | _ -> assert false
 
 let add e1 e2 =
@@ -73,7 +71,7 @@ let get disp d i =
   disp.(d).(i)
 
 let set disp d i v =
-  disp.(d).(i) <- v; Vunit
+  disp.(d).(i) <- v
 
 let rec eval_int disp e =
   match eval disp e with
@@ -95,15 +93,18 @@ and eval disp = function
   | Cget (d, i) ->
       get disp d i
   | Cset (d, i, e) ->
-      set disp d i (eval disp e)
+      set disp d i (eval disp e);
+      Vunit
   | Cload (e1, e2) ->
       load (eval disp e1) (eval disp e2)
   | Cstore (e1, e2, e3) ->
-      store (eval disp e1) (eval disp e2) (eval disp e3)
+      store (eval disp e1) (eval disp e2) (eval disp e3);
+      Vunit
   | Cgetf (e1, i) ->
       getf (eval disp e1) i
   | Csetf (e1, i, e2) ->
-      setf (eval disp e1) i (eval disp e2)
+      setf (eval disp e1) i (eval disp e2);
+      Vunit
   | Cadd (e1, e2) ->
       add (eval disp e1) (eval disp e2)
   | Cmul (e1, e2) ->
@@ -148,11 +149,10 @@ and eval disp = function
       let rec loop u =
         if u > v2 then Vunit
         else begin
-          let u' = u + 1 in
-          ignore (set disp d i (Vint u'));
+          set disp d i (Vint u);
           try
             ignore (eval disp e3);
-            loop u'
+            loop (u + 1)
           with Break -> Vunit
         end
       in loop v1
@@ -162,8 +162,6 @@ and eval disp = function
       f (Array.map (eval disp) ea)
 
 let run (max_static_depth, frame_size, e) =
-  (* Printf.eprintf "run: max_static_depth = %d frame_size = %d\n"
-   * max_static_depth frame_size; *)
   let disp = Array.make (max_static_depth + 1) [| |] in
   disp.(0) <- Array.make frame_size Vunit;
   eval disp e
