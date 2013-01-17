@@ -2,9 +2,7 @@ open Tiger_code
 
 let load v1 v2 =
   match v1, v2 with
-  | Varray a, Vint n ->
-      Printf.eprintf "load: %d\n%!" n;
-      a.(n)
+  | Varray a, Vint n -> a.(n)
   | _ -> assert false
 
 let store v1 v2 v3 =

@@ -7,11 +7,7 @@ let compile_and_run input =
   Tiger_eval.run (compile input)
 
 let compile_and_run_file filename =
-  compile_and_run (open_in filename)
+  print_endline (Tiger_code.string_of_value (compile_and_run (open_in filename)))
 
 let _ =
-  while true do
-    print_string "> ";
-    flush stdout;
-    print_endline (Tiger_code.string_of_value (compile_and_run stdin));
-  done
+  Arg.parse [] compile_and_run_file ""
