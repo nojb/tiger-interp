@@ -318,7 +318,7 @@ and letfuns tenv venv funs =
   let update_function fn venv body =
     match fn.Tiger_env.fn_desc with
     | Tiger_env.User p ->
-        p.proc_body <- body;
+        p.proc_code <- body;
         p.proc_frame_size <- Tiger_env.frame_size venv
     | _ -> assert false in
 
@@ -338,22 +338,20 @@ and letfuns tenv venv funs =
 
 (** Translation of programs *)
 
-open Tiger_stdlib
-
 let base_venv () =
-  let prims : (string * tiger_type list * tiger_type * (value array -> value)) list = [
-    "print",      [TIGstring],                  TIGvoid,    tiger_print;
-    "printi",     [TIGint],                     TIGvoid,    tiger_printi;
-    "flush",      [],                           TIGvoid,    tiger_flush;
-    "getchar",    [],                           TIGstring,  tiger_getchar;
-    "ord",        [TIGstring],                  TIGint,     tiger_ord;
-    "chr",        [TIGint],                     TIGstring,  tiger_chr;
-    "size",       [TIGstring],                  TIGint,     tiger_size;
-    "substring",  [TIGstring; TIGint; TIGint],  TIGstring,  tiger_substring;
-    "concat",     [TIGstring; TIGstring],       TIGstring,  tiger_concat;
-    "not",        [TIGint],                     TIGint,     tiger_not;
-    "exit",       [TIGint],                     TIGvoid,    tiger_exit;
-    "sizea",      [TIGanyarray],                TIGint,     tiger_sizea ] in
+  let prims = [
+    "print",      [TIGstring],                  TIGvoid,    Pprint;
+    "printi",     [TIGint],                     TIGvoid,    Pprinti;
+    "flush",      [],                           TIGvoid,    Pflush;
+    "getchar",    [],                           TIGstring,  Pgetchar;
+    "ord",        [TIGstring],                  TIGint,     Pord;
+    "chr",        [TIGint],                     TIGstring,  Pchr;
+    "size",       [TIGstring],                  TIGint,     Psize;
+    "substring",  [TIGstring; TIGint; TIGint],  TIGstring,  Psubstring;
+    "concat",     [TIGstring; TIGstring],       TIGstring,  Pconcat;
+    "not",        [TIGint],                     TIGint,     Pnot;
+    "exit",       [TIGint],                     TIGvoid,    Pexit;
+    "sizea",      [TIGanyarray],                TIGint,     Psizea ] in
   let venv = Tiger_env.create () in
   List.iter (fun (name, ts, t, p) ->
     Tiger_env.add_primitive venv name (ts, t) p) prims;
@@ -365,4 +363,5 @@ let transl_program e =
   let e, _ = type_exp base_tenv venv false e in
   let max_static_depth = Tiger_env.max_static_depth venv in
   let frame_size = Tiger_env.frame_size venv in
+  Printcode.print_code Format.std_formatter e;
   max_static_depth, frame_size, e

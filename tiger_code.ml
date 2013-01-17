@@ -8,40 +8,52 @@ type value =
 type comparison =
   | Ceq | Cle | Clt | Cne | Cge | Cgt
 
-type expr =
+type primitive =
+  | Pprint
+  | Pprinti
+  | Pflush
+  | Pgetchar
+  | Pord
+  | Pchr
+  | Psize
+  | Psubstring
+  | Pconcat
+  | Pnot
+  | Pexit
+  | Psizea
+
+type code =
   | Cquote of value
   | Cget of int * int
-  | Cset of int * int * expr
-  | Cload of expr * expr
-  | Cstore of expr * expr * expr
-  | Cgetf of expr * int
-  | Csetf of expr * int * expr
-  | Cadd of expr * expr
-  | Cmul of expr * expr
-  | Cdiv of expr * expr
-  | Csub of expr * expr
-  | Cicmp of expr * comparison * expr
-  | Cscmp of expr * comparison * expr
-  | Candalso of expr * expr
-  | Corelse of expr * expr
-  | Ccall of proc * expr array
-  | Cseq of expr array
-  | Cmakearray of expr * expr
-  | Cmakerecord of expr array
-  | Cif of expr * expr * expr
-  | Cwhile of expr * expr
-  | Cfor of int * int * expr * expr * expr
+  | Cset of int * int * code
+  | Cload of code * code
+  | Cstore of code * code * code
+  | Cgetf of code * int
+  | Csetf of code * int * code
+  | Cadd of code * code
+  | Cmul of code * code
+  | Cdiv of code * code
+  | Csub of code * code
+  | Cicmp of code * comparison * code
+  | Cscmp of code * comparison * code
+  | Candalso of code * code
+  | Corelse of code * code
+  | Ccall of proc * code array
+  | Cseq of code array
+  | Cmakearray of code * code
+  | Cmakerecord of code array
+  | Cif of code * code * code
+  | Cwhile of code * code
+  | Cfor of int * int * code * code * code
   | Cbreak
-  | Cprim of prim * expr array
+  | Cprim of primitive * code array
 
 and proc = {
-  mutable proc_body : expr;
+  mutable proc_code : code;
   mutable proc_frame_size : int;
-  proc_depth : int
+  proc_depth : int;
+  proc_name : string
 }
-
-and prim =
-  value array -> value
 
 exception Break
 exception Nil

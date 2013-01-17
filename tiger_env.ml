@@ -9,7 +9,7 @@ type variable_info = {
 
 type function_desc =
   | User of proc
-  | Builtin of (value array -> value)
+  | Builtin of primitive
 
 type function_info = {
   fn_desc : function_desc;
@@ -63,8 +63,8 @@ let find_variable env name =
   | Sfunction _ -> raise Not_found
 
 let add_function env name sg =
-  let dummy_desc = { proc_frame_size = 0; proc_body = Cquote Vunit; proc_depth =
-    env.env_depth + 1 } in
+  let dummy_desc = { proc_frame_size = 0; proc_code = Cquote Vunit; proc_depth =
+    env.env_depth + 1; proc_name = name } in
   env.env_bindings <-
     M.add name (Sfunction {fn_signature = sg; fn_desc = User dummy_desc}) env.env_bindings
 

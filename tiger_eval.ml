@@ -1,5 +1,40 @@
 open Tiger_code
 
+let eval_primitive p va =
+  match p, va with
+  | Pprint, [| Vstring s |] ->
+      print_string s;
+      Vunit
+  | Pprinti, [| Vint i |] ->
+      print_int i;
+      Vunit
+  | Pflush, [| |] ->
+      flush stdout;
+      Vunit
+  | Pgetchar, [| |] ->
+      Vstring (try String.make 1 (input_char stdin) with End_of_file -> "")
+  | Pord, [| Vstring "" |] ->
+      Vint (-1)
+  | Pord, [| Vstring s |] ->
+      Vint (int_of_char s.[0])
+  | Pchr, [| Vint i |] ->
+      Vstring (String.make 1 (char_of_int i))
+  | Psize, [| Vstring s |] ->
+      Vint (String.length s)
+  | Psubstring, [| Vstring s; Vint f; Vint n |] ->
+      Vstring (String.sub s f n)
+  | Pconcat, [| Vstring s1; Vstring s2 |] ->
+      Vstring (s1 ^ s2)
+  | Pnot, [| Vint 0 |] ->
+      Vint 1
+  | Pnot, [| Vint _ |] ->
+      Vint 0
+  | Pexit, [| Vint i |] ->
+      raise (Exit i)
+  | Psizea, [| Varray a |] ->
+      Vint (Array.length a)
+  | _ -> assert false
+
 let load v1 v2 =
   match v1, v2 with
   | Varray a, Vint n -> a.(n)
@@ -81,7 +116,7 @@ and call disp p va =
   let new_frame = Array.make p.proc_frame_size Vunit in
   Array.blit va 0 new_frame 0 (Array.length va);
   disp.(p.proc_depth) <- new_frame;
-  let result = eval disp p.proc_body in
+  let result = eval disp p.proc_code in
   disp.(p.proc_depth) <- old_frame;
   result
 
@@ -156,8 +191,8 @@ and eval disp = function
       in loop v1
   | Cbreak ->
       raise Break
-  | Cprim (f, ea) ->
-      f (Array.map (eval disp) ea)
+  | Cprim (p, ea) ->
+      eval_primitive p (Array.map (eval disp) ea)
 
 let run (max_static_depth, frame_size, e) =
   let disp = Array.make (max_static_depth + 1) [| |] in
