@@ -352,7 +352,8 @@ let base_venv () =
     "substring",  [TIGstring; TIGint; TIGint],  TIGstring,  tiger_substring;
     "concat",     [TIGstring; TIGstring],       TIGstring,  tiger_concat;
     "not",        [TIGint],                     TIGint,     tiger_not;
-    "exit",       [TIGint],                     TIGvoid,    tiger_exit ] in
+    "exit",       [TIGint],                     TIGvoid,    tiger_exit;
+    "sizea",      [TIGanyarray],                TIGint,     tiger_sizea ] in
   let venv = Tiger_env.create () in
   List.iter (fun (name, ts, t, p) ->
     Tiger_env.add_primitive venv name (ts, t) p) prims;

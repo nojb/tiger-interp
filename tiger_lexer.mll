@@ -80,7 +80,7 @@ rule token = parse
   { RPAREN }
   | [' ' '\t']+
   { token lexbuf }
-  | "(*"
+  | "/*"
   { comment 0 lexbuf }
   | '"'
   { string lexbuf }

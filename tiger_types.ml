@@ -5,6 +5,7 @@ type tiger_type =
   | TIGarray of tiger_type * int
   | TIGrecord of (string * tiger_type) array * int
   | TIGforward of string
+  | TIGanyarray
 
 let rec type_equal t1 t2 =
   match t1, t2 with
@@ -13,6 +14,8 @@ let rec type_equal t1 t2 =
   | TIGstring, TIGstring -> true
   | TIGarray (_, id), TIGarray (_, id')
   | TIGrecord (_, id), TIGrecord (_, id') -> id = id'
+  | TIGanyarray, TIGarray _
+  | TIGarray _, TIGanyarray -> true
   | TIGforward _, _
   | _, TIGforward _ -> failwith "type_equal"
   | _ -> false

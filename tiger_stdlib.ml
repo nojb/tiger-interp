@@ -46,3 +46,7 @@ let tiger_not = function
 let tiger_exit = function
   | [| Vint i |] -> raise (Exit i)
   | _ -> assert false
+
+let tiger_sizea = function
+  | [| Varray a |] -> Vint (Array.length a)
+  | _ -> assert false
