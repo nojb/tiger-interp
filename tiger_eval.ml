@@ -97,15 +97,6 @@ let scmp v1 cmp v2 =
   | Vstring s1, Cgt, Vstring s2 -> Vint (if s1  > s2 then 1 else 0)
   | _ -> assert false
 
-type display =
-  value array array
-
-let get disp d i =
-  disp.(d).(i)
-
-let set disp d i v =
-  disp.(d).(i) <- v
-
 let rec eval_int disp e =
   match eval disp e with
   | Vint n -> n
@@ -124,9 +115,9 @@ and eval disp = function
   | Cquote v ->
       v
   | Cget (d, i) ->
-      get disp d i
+      disp.(d).(i)
   | Cset (d, i, e) ->
-      set disp d i (eval disp e);
+      disp.(d).(i) <- (eval disp e);
       Vunit
   | Cload (e1, e2) ->
       load (eval disp e1) (eval disp e2)
@@ -182,7 +173,7 @@ and eval disp = function
       let rec loop u =
         if u > v2 then Vunit
         else begin
-          set disp d i (Vint u);
+          disp.(d).(i) <- Vint u;
           try
             ignore (eval disp e3);
             loop (u + 1)

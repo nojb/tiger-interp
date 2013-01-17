@@ -6,6 +6,11 @@ type bin =
   | Op_eq | Op_leq | Op_geq | Op_ne
   | Op_gt | Op_lt | Op_and | Op_or
 
+type typ =
+  | Tname of string loc
+  | Tarray of string loc
+  | Trecord of (string loc * string loc) list
+
 type exp =
   | Eint of int
   | Estring of string
@@ -36,7 +41,3 @@ and fundec = {
   fun_body : exp loc
 }
 
-and typ =
-  | Tname of string loc
-  | Tarray of string loc
-  | Trecord of (string loc * string loc) list
