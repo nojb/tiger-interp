@@ -175,6 +175,10 @@ and type_exp tenv venv inloop (e, loc) =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cicmp (e1, Ceq, e2), TIGint
+  | Ebinop (x, Op_ne, y) ->
+      let e1 = int_exp tenv venv inloop x in
+      let e2 = int_exp tenv venv inloop y in
+      Cicmp (e1, Cne, e2), TIGint
   | Ebinop (x, Op_leq, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
@@ -183,6 +187,14 @@ and type_exp tenv venv inloop (e, loc) =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cicmp (e1, Clt, e2), TIGint
+  | Ebinop (x, Op_geq, y) ->
+      let e1 = int_exp tenv venv inloop x in
+      let e2 = int_exp tenv venv inloop y in
+      Cicmp (e1, Cge, e2), TIGint
+  | Ebinop (x, Op_gt, y) ->
+      let e1 = int_exp tenv venv inloop x in
+      let e2 = int_exp tenv venv inloop y in
+      Cicmp (e1, Cgt, e2), TIGint
   | Ebinop (x, Op_and, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
@@ -191,8 +203,6 @@ and type_exp tenv venv inloop (e, loc) =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Corelse (e1, e2), TIGint
-  | Ebinop _ ->
-      failwith "binop not implemented"
   (* | P.Eassign (v, (P.Enil, _)) -> FIXME NIL FIXME
       let v,  _ = record_var var v in
       Eassign (v, Eint 0), Tvoid *)
