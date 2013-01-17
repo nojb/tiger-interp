@@ -82,10 +82,12 @@ let rec code ppf = function
       fprintf ppf "@[<2>(%s%a)@]" p.proc_name args ca
   | Cseq [| |] ->
       fprintf ppf "()"
+  | Cseq [| c |] ->
+      code ppf c
   | Cseq (ca) ->
       let codes ppf ca =
         Array.iter (fun c -> fprintf ppf "@ %a" code c) ca in
-      fprintf ppf "@[<2>(seq%a)@]" codes ca
+      fprintf ppf "@[<2>(seq@[<hv>%a@])@]" codes ca
   | Cmakearray (c1, c2) ->
       fprintf ppf "@[<2>(makearray@ %a@ %a)@]" code c1 code c2
   | Cmakerecord (ca) ->
@@ -97,7 +99,7 @@ let rec code ppf = function
   | Cwhile (c1, c2) ->
       fprintf ppf "@[<2>(while@ %a@ %a)@]" code c1 code c2
   | Cfor (d, i, c1, c2, c3) ->
-      fprintf ppf "@[<2>(for %d %d@ %a@ %a@ %a)@]"
+      fprintf ppf "@[<2>(for (%d %d)@ %a@ %a@ %a)@]"
         d i code c1 code c2 code c3
   | Cbreak ->
       fprintf ppf "(break)"
