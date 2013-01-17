@@ -167,6 +167,10 @@ and type_exp tenv venv inloop (e, loc) =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cmul (e1, e2), TIGint
+  | Ebinop (x, Op_div, y) ->
+      let e1 = int_exp tenv venv inloop x in
+      let e2 = int_exp tenv venv inloop y in
+      Cdiv (e1, e2), TIGint
   | Ebinop (x, Op_eq, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
@@ -175,6 +179,10 @@ and type_exp tenv venv inloop (e, loc) =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cicmp (e1, Cle, e2), TIGint
+  | Ebinop (x, Op_lt, y) ->
+      let e1 = int_exp tenv venv inloop x in
+      let e2 = int_exp tenv venv inloop y in
+      Cicmp (e1, Clt, e2), TIGint
   | Ebinop (x, Op_and, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
