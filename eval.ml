@@ -1,4 +1,4 @@
-open Tiger_code
+open Code
 
 let eval_primitive p va =
   match p, va with

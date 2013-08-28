@@ -1,6 +1,6 @@
-open Tiger_types
-open Tiger_code
-open Tiger_ast
+open Types
+open Code
+open Ast
 
 type error =
   | Unbound_variable of string
@@ -18,20 +18,20 @@ type error =
   | Illegal_nil
   | Illegal_break
 
-exception Error of Tiger_loc.t * error
+exception Error of Loc.t * error
 
 module M = Map.Make (String)
 
 let find_variable (x, loc) venv =
   try
-    let vd = Tiger_env.find_variable venv x in
-    vd.Tiger_env.var_type, vd.Tiger_env.var_depth, vd.Tiger_env.var_frame_index
+    let vd = Env.find_variable venv x in
+    vd.Env.var_type, vd.Env.var_depth, vd.Env.var_frame_index
   with
     Not_found -> raise (Error (loc, Unbound_variable x))
 
 let find_function (x, loc) venv =
   try
-    Tiger_env.find_function venv x
+    Env.find_function venv x
   with
     Not_found -> raise (Error (loc, Unbound_function x))
   
@@ -118,8 +118,8 @@ and void_exp tenv venv inloop (e, loc) =
   | _ -> raise (Error (loc, Expected_void))
 
 and transl_call tenv venv inloop (x, loc) xs =
-  let func = Tiger_env.find_function venv x in
-  let (ts, t) = func.Tiger_env.fn_signature in
+  let func = Env.find_function venv x in
+  let (ts, t) = func.Env.fn_signature in
 
   if List.length xs <> List.length ts then
     raise (Error (loc, Bad_arity (List.length ts, List.length xs)));
@@ -128,9 +128,9 @@ and transl_call tenv venv inloop (x, loc) xs =
     match xs, ts with
     | [], [] ->
         let args = Array.of_list (List.rev args) in
-        begin match func.Tiger_env.fn_desc with
-        | Tiger_env.User f -> Ccall (f, args)
-        | Tiger_env.Builtin p -> Cprim (p, args) end
+        begin match func.Env.fn_desc with
+        | Env.User f -> Ccall (f, args)
+        | Env.Builtin p -> Cprim (p, args) end
     | x :: xs, t :: ts ->
         let x = exp_with_type tenv venv inloop x t in
         loop (x :: args) xs ts
@@ -257,8 +257,8 @@ and type_exp tenv venv inloop (e, loc) =
   | Efor (i, x, y, z) ->
       let x = int_exp tenv venv inloop x in
       let y = int_exp tenv venv inloop y in
-      let venv = Tiger_env.new_scope venv in
-      let d, i = Tiger_env.add_variable venv i TIGint in
+      let venv = Env.new_scope venv in
+      let d, i = Env.add_variable venv i TIGint in
       let z = void_exp tenv venv true z in
       Cfor (d, i, x, y, z), TIGvoid
   | Ebreak ->
@@ -266,21 +266,21 @@ and type_exp tenv venv inloop (e, loc) =
       else raise (Error (loc, Illegal_break))
   | Eletvar (x, None, y, z) ->
       let y, t = type_exp tenv venv inloop y in
-      let venv = Tiger_env.new_scope venv in
-      let d, i = Tiger_env.add_variable venv x t in
+      let venv = Env.new_scope venv in
+      let d, i = Env.add_variable venv x t in
       let z, t = type_exp tenv venv inloop z in
       Cseq [| Cset (d, i, y); z |], t
   | Eletvar (x, Some t, (Enil, _), z) ->
       let t, _ = find_record_type t tenv in
-      let venv = Tiger_env.new_scope venv in
-      let d, i = Tiger_env.add_variable venv x t in
+      let venv = Env.new_scope venv in
+      let d, i = Env.add_variable venv x t in
       let z, t = type_exp tenv venv inloop z in
       Cseq [| Cset (d, i, Cquote (Vrecord None)); z |], t
   | Eletvar (x, Some t, y, z) ->
       let t = find_type t tenv in
       let y = exp_with_type tenv venv inloop y t in
-      let venv = Tiger_env.new_scope venv in
-      let d, i = Tiger_env.add_variable venv x t in
+      let venv = Env.new_scope venv in
+      let d, i = Env.add_variable venv x t in
       let z, t = type_exp tenv venv inloop z in
       Cseq [| Cset (d, i, y); z |], t
   | Elettype (tys, e) ->
@@ -329,27 +329,27 @@ and function_name fn =
 and letfuns tenv venv funs =
 
   let declare_function venv func =
-    Tiger_env.add_function venv
+    Env.add_function venv
       (function_name func)
       (function_signature tenv func) in
 
   let update_function fn venv body =
-    match fn.Tiger_env.fn_desc with
-    | Tiger_env.User p ->
+    match fn.Env.fn_desc with
+    | Env.User p ->
         p.proc_code <- body;
-        p.proc_frame_size <- Tiger_env.frame_size venv
+        p.proc_frame_size <- Env.frame_size venv
     | _ -> assert false in
 
   let define_function venv func =
-    let fn = Tiger_env.find_function venv (fst func.fun_name) in
-    let ts, t = fn.Tiger_env.fn_signature in
-    let venv = Tiger_env.new_frame venv in
+    let fn = Env.find_function venv (fst func.fun_name) in
+    let ts, t = fn.Env.fn_signature in
+    let venv = Env.new_frame venv in
     List.iter2 (fun ((x, _), _) t ->
-      ignore (Tiger_env.add_variable venv x t)) func.fun_args ts;
+      ignore (Env.add_variable venv x t)) func.fun_args ts;
     let body = exp_with_type tenv venv false func.fun_body t in
     update_function fn venv body in
 
-  let venv = Tiger_env.new_scope venv in
+  let venv = Env.new_scope venv in
   List.iter (declare_function venv) funs;
   List.iter (define_function venv) funs;
   venv
@@ -370,16 +370,16 @@ let base_venv () =
     "not",        [TIGint],                     TIGint,     Pnot;
     "exit",       [TIGint],                     TIGvoid,    Pexit;
     "sizea",      [TIGanyarray],                TIGint,     Psizea ] in
-  let venv = Tiger_env.create () in
+  let venv = Env.create () in
   List.iter (fun (name, ts, t, p) ->
-    Tiger_env.add_primitive venv name (ts, t) p) prims;
+    Env.add_primitive venv name (ts, t) p) prims;
   venv
 
 let transl_program e =
   type_count := 0;
   let venv = base_venv () in
   let e, _ = type_exp base_tenv venv false e in
-  let max_static_depth = Tiger_env.max_static_depth venv in
-  let frame_size = Tiger_env.frame_size venv in
+  let max_static_depth = Env.max_static_depth venv in
+  let frame_size = Env.frame_size venv in
   Printcode.print_code Format.std_formatter e;
   max_static_depth, frame_size, e

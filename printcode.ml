@@ -1,5 +1,5 @@
 open Format
-open Tiger_code
+open Code
 
 let string_of_comparison = function
   | Ceq -> "="

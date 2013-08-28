@@ -1,5 +1,5 @@
 type 'a loc =
-  'a * Tiger_loc.t
+  'a * Loc.t
 
 type bin =
   | Op_add | Op_sub | Op_mul | Op_div

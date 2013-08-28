@@ -1,5 +1,5 @@
-open Tiger_types
-open Tiger_code
+open Types
+open Code
 
 type variable_info = {
   var_depth : int;

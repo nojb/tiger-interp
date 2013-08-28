@@ -1,5 +1,5 @@
 %{
-  open Tiger_ast
+  open Ast
 %}
 
 %token ARRAY OF
@@ -23,7 +23,7 @@
 %token <string> STRING
 %token EOF
 
-%type <Tiger_ast.exp Tiger_ast.loc> program
+%type <Ast.exp Ast.loc> program
 %start program
 
 %left THEN
@@ -79,7 +79,7 @@ exp:
   | v=var
   { v }
   | MINUS x=loc(exp) %prec unary_op
-  { Ebinop ((Eint 0, Tiger_loc.make $startpos ($startpos(x))), Op_sub, x) }
+  { Ebinop ((Eint 0, Loc.make $startpos ($startpos(x))), Op_sub, x) }
   | x=loc(exp) op=bin y=loc(exp)
   { Ebinop (x, op, y) }
   | v=loc(var) COLONEQ e=loc(exp)
@@ -112,7 +112,7 @@ exp:
   ;
 
 %inline loc(X):
-    x=X     { (x, Tiger_loc.make $startpos $endpos) }
+    x=X     { (x, Loc.make $startpos $endpos) }
   ;
 
 var:
@@ -122,7 +122,7 @@ var:
 
 longvar:
     i=loc(IDENT) LBRACK e=loc(exp) RBRACK
-  { Eload ((Esimple i, Tiger_loc.make ($startpos(i)) ($endpos(i))), e) }
+  { Eload ((Esimple i, Loc.make ($startpos(i)) ($endpos(i))), e) }
   | v=loc(var) DOT i=loc(IDENT)
   { Eget (v, i) }
   ;

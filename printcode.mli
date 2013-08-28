@@ -1,4 +1,4 @@
-open Tiger_code
+open Code
 open Format
 
 val code: formatter -> code -> unit

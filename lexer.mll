@@ -1,5 +1,5 @@
 {
-  open Tiger_parser
+  open Parser
 
   let str_buf = Buffer.create 20;;
   let keywords = Hashtbl.create 10;;
