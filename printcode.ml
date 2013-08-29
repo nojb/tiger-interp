@@ -51,20 +51,20 @@ let rec code ppf = function
       fprintf ppf "@[<2>(%d %d)@]" d i
   | Cset(d, i, c) ->
       fprintf ppf "@[<2>(set (%d %d)@ %a)@]" d i code c
-  | Cload(c1, c2) ->
-      fprintf ppf "@[<2>(load@ %a@ %a)@]" code c1 code c2
-  | Cstore(c1, c2, c3) ->
-      fprintf ppf "@[<2>(store@ %a@ %a@ %a)@]" code c1 code c2 code c3
-  | Cgetf(c1, i) ->
-      fprintf ppf "@[<2>(getf@ %a@ %d)@]" code c1 i
-  | Csetf(c1, i, c2) ->
-      fprintf ppf "@[<2>(setf@ %a@ %d@ %a)@]" code c1 i code c2
+  | Cload(lnum, c1, c2) ->
+      fprintf ppf "@[<2>(load@ [%d]@ %a@ %a)@]" lnum code c1 code c2
+  | Cstore(lnum, c1, c2, c3) ->
+      fprintf ppf "@[<2>(store@ [%d]@ %a@ %a@ %a)@]" lnum code c1 code c2 code c3
+  | Cgetf(lnum, c1, i) ->
+      fprintf ppf "@[<2>(getf@ [%d]@ %a@ %d)@]" lnum code c1 i
+  | Csetf(lnum, c1, i, c2) ->
+      fprintf ppf "@[<2>(setf@ [%d]@ %a@ %d@ %a)@]" lnum code c1 i code c2
   | Cadd(c1, c2) ->
       fprintf ppf "@[<2>(+@ %a@ %a)@]" code c1 code c2
   | Cmul(c1, c2) ->
       fprintf ppf "@[<2>(*@ %a@ %a)@]" code c1 code c2
-  | Cdiv(c1, c2) ->
-      fprintf ppf "@[<2>(/@ %a@ %a)@]" code c1 code c2
+  | Cdiv(lnum, c1, c2) ->
+      fprintf ppf "@[<2>(/@ [%d]@ %a@ %a)@]" lnum code c1 code c2
   | Csub(c1, c2) ->
       fprintf ppf "@[<2>(-@ %a@ %a)@]" code c1 code c2
   | Cicmp(c1, cmp, c2)

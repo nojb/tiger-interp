@@ -26,13 +26,13 @@ type code =
   | Cquote of value
   | Cget of int * int
   | Cset of int * int * code
-  | Cload of code * code
-  | Cstore of code * code * code
-  | Cgetf of code * int
-  | Csetf of code * int * code
+  | Cload of int * code * code
+  | Cstore of int * code * code * code
+  | Cgetf of int * code * int
+  | Csetf of int * code * int * code
   | Cadd of code * code
   | Cmul of code * code
-  | Cdiv of code * code
+  | Cdiv of int * code * code
   | Csub of code * code
   | Cicmp of code * comparison * code
   | Cscmp of code * comparison * code
@@ -54,10 +54,6 @@ and proc = {
   proc_depth : int;
   proc_name : string
 }
-
-exception Break
-exception Nil
-exception Exit of int
 
 let rec string_of_value = function (* loops if circular data type *)
   | Vunit -> ""

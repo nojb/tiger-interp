@@ -1,5 +1,14 @@
 open Code
 
+type runtime_error =
+  | Out_of_bounds
+  | Nil_record
+  | Div_by_zero
+
+exception Runtime_error of int * runtime_error
+exception Break
+exception Exit of int
+
 let eval_primitive p va =
   match p, va with
   | Pprint, [| Vstring s |] ->
@@ -35,25 +44,33 @@ let eval_primitive p va =
       Vint (Array.length a)
   | _ -> assert false
 
-let load v1 v2 =
+let load lnum v1 v2 =
   match v1, v2 with
-  | Varray a, Vint n -> a.(n)
+  | Varray a, Vint n ->
+      if n >= Array.length a || n < 0 then
+        raise (Runtime_error(lnum, Out_of_bounds))
+      else
+        a.(n)
   | _ -> assert false
 
-let store v1 v2 v3 =
+let store lnum v1 v2 v3 =
   match v1, v2 with
-  | Varray a, Vint n -> a.(n) <- v3
+  | Varray a, Vint n ->
+      if n >= Array.length a || n < 0 then
+        raise (Runtime_error(lnum, Out_of_bounds))
+      else
+        a.(n) <- v3
   | _ -> assert false
 
-let getf v1 i =
+let getf lnum v1 i =
   match v1 with
-  | Vrecord None -> raise Nil
+  | Vrecord None -> raise (Runtime_error(lnum, Nil_record))
   | Vrecord (Some a) -> a.(i)
   | _ -> assert false
 
-let setf v1 i v2 =
+let setf lnum v1 i v2 =
   match v1 with
-  | Vrecord None -> raise Nil
+  | Vrecord None -> raise (Runtime_error(lnum, Nil_record))
   | Vrecord (Some a) -> a.(i) <- v2
   | _ -> assert false
 
@@ -67,8 +84,9 @@ let mul e1 e2 =
   | Vint n, Vint m -> Vint (n * m)
   | _ -> assert false
 
-let div e1 e2 =
+let div lnum e1 e2 =
   match e1, e2 with
+  | Vint _, Vint 0 -> raise (Runtime_error(lnum, Div_by_zero))
   | Vint n, Vint m -> Vint (n / m)
   | _ -> assert false
 
@@ -114,51 +132,51 @@ and call disp p va =
 and eval disp = function
   | Cquote v ->
       v
-  | Cget (d, i) ->
+  | Cget(d, i) ->
       disp.(d).(i)
-  | Cset (d, i, e) ->
+  | Cset(d, i, e) ->
       disp.(d).(i) <- (eval disp e);
       Vunit
-  | Cload (e1, e2) ->
-      load (eval disp e1) (eval disp e2)
-  | Cstore (e1, e2, e3) ->
-      store (eval disp e1) (eval disp e2) (eval disp e3);
+  | Cload(lnum, e1, e2) ->
+      load lnum (eval disp e1) (eval disp e2)
+  | Cstore(lnum, e1, e2, e3) ->
+      store lnum (eval disp e1) (eval disp e2) (eval disp e3);
       Vunit
-  | Cgetf (e1, i) ->
-      getf (eval disp e1) i
-  | Csetf (e1, i, e2) ->
-      setf (eval disp e1) i (eval disp e2);
+  | Cgetf(lnum, e1, i) ->
+      getf lnum (eval disp e1) i
+  | Csetf(lnum, e1, i, e2) ->
+      setf lnum (eval disp e1) i (eval disp e2);
       Vunit
-  | Cadd (e1, e2) ->
+  | Cadd(e1, e2) ->
       add (eval disp e1) (eval disp e2)
-  | Cmul (e1, e2) ->
+  | Cmul(e1, e2) ->
       mul (eval disp e1) (eval disp e2)
-  | Cdiv (e1, e2) ->
-      div (eval disp e1) (eval disp e2)
-  | Csub (e1, e2) ->
+  | Cdiv(lnum, e1, e2) ->
+      div lnum (eval disp e1) (eval disp e2)
+  | Csub(e1, e2) ->
       sub (eval disp e1) (eval disp e2)
-  | Cicmp (e1, cmp, e2) ->
+  | Cicmp(e1, cmp, e2) ->
       icmp (eval disp e1) cmp (eval disp e2)
-  | Cscmp (e1, cmp, e2) ->
+  | Cscmp(e1, cmp, e2) ->
       scmp (eval disp e1) cmp (eval disp e2)
-  | Candalso (e1, e2) ->
+  | Candalso(e1, e2) ->
       if eval_int disp e1 <> 0 then eval disp e2
       else Vint 0
-  | Corelse (e1, e2) ->
+  | Corelse(e1, e2) ->
       let n = eval_int disp e1 in
       if n = 0 then eval disp e2 else (Vint n)
-  | Ccall (p, ea) ->
+  | Ccall(p, ea) ->
       call disp p (Array.map (eval disp) ea)
-  | Cseq (e1, e2) ->
+  | Cseq(e1, e2) ->
       ignore (eval disp e1);
       eval disp e2
-  | Cmakearray (e1, e2) ->
+  | Cmakearray(e1, e2) ->
       Varray (Array.make (eval_int disp e1) (eval disp e2))
-  | Cmakerecord (ea) ->
+  | Cmakerecord(ea) ->
       Vrecord (Some (Array.map (eval disp) ea))
-  | Cif (e1, e2, e3) ->
+  | Cif(e1, e2, e3) ->
       eval disp (if eval_int disp e1 <> 0 then e2 else e3)
-  | Cwhile (e1, e2) ->
+  | Cwhile(e1, e2) ->
       let rec loop v1 =
         if v1 <> 0 then
           try
@@ -168,7 +186,7 @@ and eval disp = function
         else
           Vunit
       in loop (eval_int disp e1)
-  | Cfor (d, i, e1, e2, e3) ->
+  | Cfor(d, i, e1, e2, e3) ->
       let v1 = eval_int disp e1 in
       let v2 = eval_int disp e2 in
       let rec loop u =
@@ -183,7 +201,7 @@ and eval disp = function
       in loop v1
   | Cbreak ->
       raise Break
-  | Cprim (p, ea) ->
+  | Cprim(p, ea) ->
       eval_primitive p (Array.map (eval disp) ea)
 
 let run (max_static_depth, frame_size, e) =

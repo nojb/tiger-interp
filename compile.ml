@@ -141,13 +141,13 @@ and type_var tenv venv inloop v =
   | Vsimple id ->
       let t, d, i = find_variable id venv in
       Cget(d, i), t
-  | Vsubscript(_, v, e) ->
+  | Vsubscript(p, v, e) ->
       let v, t = array_var tenv venv inloop v in
       let x = int_exp tenv venv inloop e in
-      Cload(v, x), t
-  | Vfield(_, v, id) ->
+      Cload(p.Lexing.pos_lnum, v, x), t
+  | Vfield(p, v, id) ->
       let v, i, t = record_var tenv venv inloop v id in
-      Cgetf(v, i), t
+      Cgetf(p.Lexing.pos_lnum, v, i), t
 
 and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
   match e with
@@ -173,10 +173,10 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cmul(e1, e2), TIGint
-  | Ebinop(_, x, Op_div, y) ->
+  | Ebinop(p, x, Op_div, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
-      Cdiv(e1, e2), TIGint
+      Cdiv(p.Lexing.pos_lnum, e1, e2), TIGint
   | Ebinop(_, x, Op_eq, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
@@ -221,32 +221,32 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let t, d, i = find_variable id venv in
       let e = exp_with_type tenv venv inloop e t in
       Cset(d, i, e), TIGvoid
-  | Eassign(_, Vsubscript(_, v, x), Enil _) ->
+  | Eassign(p, Vsubscript(_, v, x), Enil _) ->
       let v', t = array_var tenv venv inloop v in
       begin match unroll tenv t with
       | TIGrecord _ ->
           let x = int_exp tenv venv inloop x in
-          Cstore(v', x, Cquote(Vrecord None)), TIGvoid
+          Cstore(p.Lexing.pos_lnum, v', x, Cquote(Vrecord None)), TIGvoid
       | _ ->
           raise (Error(var_pos v, Expected_record_array_elements))
       end
-  | Eassign(_, Vsubscript(_, v, x), e) ->
+  | Eassign(p, Vsubscript(_, v, x), e) ->
       let v, t = array_var tenv venv inloop v in
       let x = int_exp tenv venv inloop x in
       let e = exp_with_type tenv venv inloop e t in
-      Cstore (v, x, e), TIGvoid
-  | Eassign(_, Vfield(_, v, x), Enil _) ->
+      Cstore (p.Lexing.pos_lnum, v, x, e), TIGvoid
+  | Eassign(p, Vfield(_, v, x), Enil _) ->
       let v', i, t = record_var tenv venv inloop v x in
       begin match unroll tenv t with
       | TIGrecord _ ->
-          Csetf(v', i, Cquote(Vrecord None)), TIGvoid
+          Csetf(p.Lexing.pos_lnum, v', i, Cquote(Vrecord None)), TIGvoid
       | _ ->
           raise (Error(var_pos v, Expected_record_field))
       end
-  | Eassign(_, Vfield(_, v, x), e) ->
+  | Eassign(p, Vfield(_, v, x), e) ->
       let v, i, t = record_var tenv venv inloop v x in
       let e = exp_with_type tenv venv inloop e t in
-      Csetf(v, i, e), TIGvoid
+      Csetf(p.Lexing.pos_lnum, v, i, e), TIGvoid
   | Ecall(_, x, xs) ->
       (* FIXME loc *)
       transl_call tenv venv inloop x xs
