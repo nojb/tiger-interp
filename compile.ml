@@ -255,7 +255,6 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let e = exp_with_type tenv venv inloop e t in
       Csetf(p.Lexing.pos_lnum, v, i, e), TIGvoid
   | Ecall(_, x, xs) ->
-      (* FIXME loc *)
       transl_call tenv venv inloop x xs
   | Eseq(x, y) ->
       let x, _ = type_exp tenv venv inloop x in
