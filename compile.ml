@@ -133,10 +133,18 @@ and transl_call tenv venv inloop x xs =
         begin match func.Env.fn_desc with
         | Env.User f -> Ccall (f, args)
         | Env.Builtin p -> Cprim (p, args) end
+    | Enil p :: xs, t :: ts ->
+        begin match unroll tenv t with
+        | TIGrecord _ ->
+            loop (Cquote(Vrecord None) :: args) xs ts
+        | _ ->
+            raise (Error(p, Expected_record_type))
+        end
     | x :: xs, t :: ts ->
         let x = exp_with_type tenv venv inloop x t in
         loop (x :: args) xs ts
-    | _ -> assert false in
+    | _ ->
+        assert false in
   (loop [] xs ts), t
 
 and type_var tenv venv inloop v =
