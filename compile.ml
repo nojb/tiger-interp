@@ -12,8 +12,6 @@ type error =
   | Expected_array
   | Expected_record
   | Type_mismatch of tiger_type * tiger_type
-  | Expected_int
-  | Expected_void
   | Bad_arity of int * int
   | Illegal_nil
   | Illegal_break
@@ -113,7 +111,7 @@ and record_var tenv venv inloop v x =
 and exp_with_type tenv venv inloop (e : exp) t' : Code.code =
   let e', t = type_exp tenv venv inloop e in
   if type_equal tenv t t' then e'
-  else raise (Error(exp_pos e, Type_mismatch(t, t')))
+  else raise (Error(exp_pos e, Type_mismatch(unroll tenv t, unroll tenv t')))
 
 and int_exp tenv venv inloop e =
   exp_with_type tenv venv inloop e TIGint
@@ -410,10 +408,43 @@ let base_venv () =
     Env.add_primitive venv name (ts, t) p) prims;
   venv
 
+let error_message = function
+  | Unbound_variable x -> Printf.sprintf "undefined variable '%s'" x
+  | Unbound_function x -> Printf.sprintf "undefined function '%s'" x
+  | Unbound_type x -> Printf.sprintf "undefined type '%s'" x
+  | Expected_array_type -> "expected array type"
+  | Expected_record_type -> "expected record type"
+  | Unknown_field x -> Printf.sprintf "unknown field '%s'" x
+  | Expected_array -> "expected array"
+  | Expected_record -> "expected record"
+  | Type_mismatch(t, t0) ->
+      Printf.sprintf "expected type '%s', found '%s'" (describe_type t) (describe_type t0)
+  | Bad_arity(n, n0) ->
+      Printf.sprintf "incorrect number of arguments, expected %d, found %d" n n0
+  | Illegal_nil ->
+      "'nil' should only be used in a context where its type can \
+      be determined"
+  | Illegal_break ->
+      "'break' should only be used a 'while' or a 'for' loop"
+  | Expected_record_array_elements ->
+      "expected array to have elements of record type"
+  | Expected_record_field ->
+      "expected field to be of record type"
+  | Unexpected_field x ->
+      Printf.sprintf "unexpected field '%s'" x
+  | Not_enough_fields -> "not enough fields"
+  | Too_many_fields -> "too many fields"
+  | Bad_cyclic_types ->
+      "cyclic type declaration does not pass through a record type"
+
 let transl_program e =
-  let venv = base_venv () in
-  let e, _ = type_exp base_tenv venv false e in
-  let max_static_depth = Env.max_static_depth venv in
-  let frame_size = Env.frame_size venv in
-  Printcode.print_code Format.std_formatter e;
-  max_static_depth, frame_size, e
+  try
+    let venv = base_venv () in
+    let e, _ = type_exp base_tenv venv false e in
+    let max_static_depth = Env.max_static_depth venv in
+    let frame_size = Env.frame_size venv in
+    Printcode.print_code Format.std_formatter e;
+    max_static_depth, frame_size, e
+  with
+    Error(p, reason) ->
+      raise (Error.Error(p, error_message reason))

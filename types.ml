@@ -16,6 +16,17 @@ let rec unroll tenv t =
 let rec type_equal tenv t1 t2 =
   unroll tenv t1 == unroll tenv t2
 
+let rec describe_type = function
+  | TIGvoid -> "void"
+  | TIGint -> "int"
+  | TIGstring -> "string"
+  | TIGarray(id, t) -> Printf.sprintf "%s = array of %s" id (describe_type t)
+  | TIGrecord(id, xts) ->
+      Printf.sprintf "%s = {%s}" id
+        (String.concat ", "
+          (List.map (fun (x, t) -> x ^ " : " ^ describe_type t) xts))
+  | TIGnamed id -> id
+
 let base_tenv =
   StringMap.add "int" TIGint
     (StringMap.add "string" TIGstring StringMap.empty)

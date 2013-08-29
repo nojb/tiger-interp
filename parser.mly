@@ -1,10 +1,9 @@
 %{
+  open Error
   open Ast
 
   let pos i =
     Parsing.rhs_start_pos i
-
-  exception Error of Lexing.position
 %}
 
 %token ARRAY OF
@@ -46,7 +45,7 @@
 
 program:
   exp EOF { $1 }
-| error { raise (Error(Parsing.symbol_start_pos ())) }
+| error { raise (Error(Parsing.symbol_start_pos (), "syntax error")) }
 ;
 
 ident:
@@ -134,7 +133,7 @@ var:
 
 decs:
     vardec decs_vtf
-  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  { (pos 1, $1) :: $2 }
   | typdecs decs_vf
   { (pos 1, Dtypes $1) :: $2 }
   | fundec_list decs_vt
@@ -145,7 +144,7 @@ decs_vtf:
     /* empty */
   { [] }
   | vardec decs_vtf
-  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  { (pos 1, $1) :: $2 }
   | typdecs decs_vf
   { (pos 1, Dtypes $1) :: $2 }
   | fundec_list decs_vt
@@ -156,7 +155,7 @@ decs_vf:
     /* empty */
   { [] }
   | vardec decs_vtf
-  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  { (pos 1, $1) :: $2 }
   | fundec_list decs_vt
   { (pos 1, Dfuns $1) :: $2 }
   ;
@@ -165,14 +164,14 @@ decs_vt:
     /* empty */
   { [] }
   | vardec decs_vtf
-  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  { (pos 1, $1) :: $2 }
   | typdecs decs_vf
   { (pos 1, Dtypes $1) :: $2 }
   ;
 
 vardec:
   VAR ident optional_var_type COLONEQ exp
-  { ($2, $3, $5) }
+  { Dvar($2, $3, $5) }
   ;
 
 optional_var_type:
@@ -189,17 +188,20 @@ typdecs:
   { ($2, $4) :: $5 }
   ;
 
-typfields:
-  ident COLON ident
-  { [($1, $3)] }
-| ident COLON ident COMMA typfields
-{ ($1, $3) :: $5 }
+type_field_list:
+  /* empty */ { [] }
+| type_field_list_tail { $1 }
+;
+
+type_field_list_tail:
+  ident COLON ident { [($1, $3)] }
+| ident COLON ident COMMA type_field_list_tail { ($1, $3) :: $5 }
   ;
 
 typ:
     ident                { Tname $1 }
   | ARRAY OF ident       { Tarray $3 }
-  | LCURLY typfields RCURLY  { Trecord $2 } 
+  | LCURLY type_field_list RCURLY  { Trecord $2 } 
   ;
 
 fundec_list:
@@ -210,7 +212,7 @@ fundec_list:
   ;
 
 fundec:
-  FUNCTION ident LPAREN typfields RPAREN
+  FUNCTION ident LPAREN type_field_list RPAREN
     optional_var_type EQ exp
   {
     { fun_name = $2; fun_args = $4;
