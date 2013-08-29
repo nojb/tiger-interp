@@ -6,11 +6,11 @@ type error =
   | Unbound_variable of string
   | Unbound_function of string
   | Unbound_type of string
-  | Expected_array_type
-  | Expected_record_type
+  | Expected_array_type of tiger_type
+  | Expected_record_type of tiger_type
   | Unknown_field of string
-  | Expected_array
-  | Expected_record
+  | Expected_array of tiger_type
+  | Expected_record of tiger_type
   | Type_mismatch of tiger_type * tiger_type
   | Bad_arity of int * int
   | Illegal_nil
@@ -72,12 +72,12 @@ let rec check_type tenv (x, t) =
 let find_array_type x tenv =
   match unroll tenv (find_type x tenv) with
   | TIGarray (_, t') as t -> t, t'
-  | _ -> raise (Error (x.pos, Expected_array_type))
+  | _ as t -> raise (Error (x.pos, Expected_array_type t))
 
 let find_record_type x tenv =
   match unroll tenv (find_type x tenv) with
   | TIGrecord (_, ts) as t -> t, ts
-  | _ -> raise (Error (x.pos, Expected_record_type))
+  | _ as t -> raise (Error (x.pos, Expected_record_type t))
 
 let find_record_field (x, loc) ts =
   let rec loop i =
@@ -93,7 +93,7 @@ let rec array_var tenv venv inloop v =
   let v', t = type_var tenv venv inloop v in
   match unroll tenv t with
   | TIGarray(_, t') -> v', t'
-  | _ -> raise (Error(var_pos v, Expected_array))
+  | _ as t -> raise (Error(var_pos v, Expected_array t))
 
 and record_var tenv venv inloop v x =
   let v', t = type_var tenv venv inloop v in
@@ -104,7 +104,7 @@ and record_var tenv venv inloop v x =
         | (x', t) :: xts when x.id = x' -> v', i, t
         | _ :: xts -> loop (i+1) xts
       in loop 0 ts
-  | _ -> raise (Error(var_pos v, Expected_record))
+  | _ as t -> raise (Error(var_pos v, Expected_record t))
 
 (** Translation of expressions *)
 
@@ -137,8 +137,8 @@ and transl_call tenv venv inloop x xs =
         begin match unroll tenv t with
         | TIGrecord _ ->
             loop (Cquote(Vrecord None) :: args) xs ts
-        | _ ->
-            raise (Error(p, Expected_record_type))
+        | _ as t ->
+            raise (Error(p, Expected_record_type t))
         end
     | x :: xs, t :: ts ->
         let x = exp_with_type tenv venv inloop x t in
@@ -217,8 +217,8 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       begin match unroll tenv t with
       | TIGrecord _ ->
           Cset(d, i, Cquote(Vrecord None)), TIGvoid
-      | _ ->
-          raise (Error(id.pos, Expected_record))
+      | _ as t ->
+          raise (Error(id.pos, Expected_record t))
       end
   | Eassign(_, Vsimple id, e) ->
       let t, d, i = find_variable id venv in
@@ -420,20 +420,28 @@ let error_message = function
   | Unbound_variable x -> Printf.sprintf "undefined variable '%s'" x
   | Unbound_function x -> Printf.sprintf "undefined function '%s'" x
   | Unbound_type x -> Printf.sprintf "undefined type '%s'" x
-  | Expected_array_type -> "expected array type"
-  | Expected_record_type -> "expected record type"
+  | Expected_array_type t ->
+      Printf.sprintf "expected array type name, instead found '%s'"
+        (describe_type t)
+  | Expected_record_type t ->
+      Printf.sprintf "expected record type name, instead found '%s'"
+        (describe_type t)
   | Unknown_field x -> Printf.sprintf "unknown field '%s'" x
-  | Expected_array -> "expected array"
-  | Expected_record -> "expected record"
+  | Expected_array t ->
+      Printf.sprintf "expected array variable, instead found type '%s'"
+        (describe_type t)
+  | Expected_record t ->
+      Printf.sprintf "expected record variable, instead found type '%s'"
+        (describe_type t)
   | Type_mismatch(t, t0) ->
       Printf.sprintf "expected type '%s', found '%s'" (describe_type t) (describe_type t0)
   | Bad_arity(n, n0) ->
       Printf.sprintf "incorrect number of arguments, expected %d, found %d" n n0
   | Illegal_nil ->
-      "'nil' should only be used in a context where its type can \
+      "'nil' must be used in a context where its type can \
       be determined"
   | Illegal_break ->
-      "'break' should only be used a 'while' or a 'for' loop"
+      "'break' must be used a 'while' or a 'for' loop"
   | Expected_record_array_elements ->
       "expected array to have elements of record type"
   | Expected_record_field ->
