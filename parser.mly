@@ -3,6 +3,8 @@
 
   let pos i =
     Parsing.rhs_start_pos i
+
+  exception Error of Lexing.position
 %}
 
 %token ARRAY OF
@@ -43,8 +45,8 @@
 %%
 
 program:
-  exp EOF
-  { $1 }
+  exp EOF { $1 }
+| error { raise (Error(Parsing.symbol_start_pos ())) }
 ;
 
 ident:
@@ -73,33 +75,32 @@ fields:
   { ($1, $3) :: $5 }
   ;
 
-%inline bin:
-    LAND    { Op_and }
-  | LOR     { Op_or }
-  | PLUS    { Op_add }
-  | TIMES   { Op_mul }
-  | MINUS   { Op_sub }
-  | SLASH   { Op_div }
-  | EQ      { Op_eq }
-  | NE      { Op_ne }
-  | LE      { Op_leq }
-  | LT      { Op_lt }
-  | GE      { Op_geq }
-  | GT      { Op_gt }
-  ;
-
 exp:
   INT         { Eint(pos 1, $1) }
 | STRING      { Estring(pos 1, $1) }
 | NIL         { Enil(pos 1) }
 | var         { Evar $1 }
 | MINUS exp %prec unary_op              { Ebinop(pos 1, Eint(pos 1, 0), Op_sub, $2) }
-| x=exp op=bin y=exp                    { Ebinop(pos 2, x, op, y) }
+| exp LAND exp { Eif(pos 1, $1, $3, Eint(pos 3, 0)) }
+| exp LOR exp { Eif(pos 1, $1, Eint(pos 1, 1), $3) }
+| exp PLUS exp { Ebinop(pos 2, $1, Op_add, $3) }
+| exp MINUS exp { Ebinop(pos 2, $1, Op_sub, $3) }
+| exp TIMES exp { Ebinop(pos 2, $1, Op_mul, $3) }
+| exp SLASH exp { Ebinop(pos 2, $1, Op_div, $3) }
+| exp EQ exp { Ebinop(pos 2, $1, Op_eq, $3) }
+| exp NE exp { Ebinop(pos 2, $1, Op_ne, $3) }
+| exp LE exp { Ebinop(pos 2, $1, Op_leq, $3) }
+| exp LT exp { Ebinop(pos 2, $1, Op_lt, $3) }
+| exp GE exp { Ebinop(pos 2, $1, Op_geq, $3) }
+| exp GT exp { Ebinop(pos 2, $1, Op_gt, $3) }
 | var COLONEQ exp                       { Eassign(pos 2, $1, $3) }
 | ident LPAREN exp_list RPAREN          { Ecall(pos 1, $1, $3) }
 | LPAREN expseq RPAREN                  { $2 }
 | ident LCURLY fields RCURLY            { Erecord(pos 2, $1, $3) }
-| ident LBRACK exp RBRACK OF exp        { Earray(pos 2, $1, $3, $6) }
+| var LBRACK exp RBRACK OF exp
+    { match $1 with
+      | Vsimple(x) -> Earray(pos 2, x, $3, $6)
+      | _ -> raise Parse_error }
 | IF exp THEN exp                       { Eif(pos 1, $2, $4, Eunit(pos 4)) }
 | IF exp THEN exp ELSE exp              { Eif(pos 1, $2, $4, $6) }
 | WHILE exp DO exp                      { Ewhile(pos 1, $2, $4) }
