@@ -149,8 +149,9 @@ and eval disp = function
       if n = 0 then eval disp e2 else (Vint n)
   | Ccall (p, ea) ->
       call disp p (Array.map (eval disp) ea)
-  | Cseq (ea) ->
-      Array.fold_left (fun _ e -> eval disp e) Vunit ea
+  | Cseq (e1, e2) ->
+      ignore (eval disp e1);
+      eval disp e2
   | Cmakearray (e1, e2) ->
       Varray (Array.make (eval_int disp e1) (eval disp e2))
   | Cmakerecord (ea) ->

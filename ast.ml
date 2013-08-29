@@ -1,5 +1,10 @@
-type 'a loc =
-  'a * Loc.t
+type pos =
+  Lexing.position
+
+type ident = {
+  id : string;
+  pos : pos
+}
 
 type bin =
   | Op_add | Op_sub | Op_mul | Op_div
@@ -7,37 +12,54 @@ type bin =
   | Op_gt | Op_lt | Op_and | Op_or
 
 type typ =
-  | Tname of string loc
-  | Tarray of string loc
-  | Trecord of (string loc * string loc) list
+  | Tname     of ident
+  | Tarray    of ident
+  | Trecord   of (ident * ident) list
 
-type exp =
-  | Eint of int
-  | Estring of string
-  | Enil
-  | Esimple of string loc
-  | Eload of exp loc * exp loc
-  | Eget of exp loc * string loc
-  | Ebinop of exp loc * bin * exp loc
-  | Eassign of string loc * exp loc
-  | Estore of exp loc * exp loc * exp loc
-  | Eput of exp loc * string loc * exp loc
-  | Ecall of string loc * exp loc list
-  | Eseq of exp loc list
-  | Earray of string loc * exp loc * exp loc
-  | Erecord of string loc * (string loc * exp loc) list
-  | Eif of exp loc * exp loc * exp loc option
-  | Ewhile of exp loc * exp loc
-  | Efor of string * exp loc * exp loc * exp loc
-  | Ebreak
-  | Eletvar of string * string loc option * exp loc * exp loc
-  | Eletfuns of fundec list * exp loc
-  | Elettype of (string * typ) list * exp loc
+type var =
+  | Vsimple     of ident
+  | Vsubscript  of pos * var * exp
+  | Vfield      of pos * var * ident
+
+and exp =
+  | Eunit     of pos
+  | Eint      of pos * int
+  | Estring   of pos * string
+  | Enil      of pos
+  | Evar      of var
+  | Ebinop    of pos * exp * bin * exp
+  | Eassign   of pos * var * exp
+  | Ecall     of pos * ident * exp list
+  | Eseq      of exp * exp
+  | Earray    of pos * ident * exp * exp
+  | Erecord   of pos * ident * (ident * exp) list
+  | Eif       of pos * exp * exp * exp
+  | Ewhile    of pos * exp * exp
+  | Efor      of pos * ident * exp * exp * exp
+  | Ebreak    of pos
+  | Elet      of pos * dec * exp
+
+and dec =
+  | Dtypes  of (ident * typ) list
+  | Dfuns   of fundec list
+  | Dvar    of ident * ident option * exp
 
 and fundec = {
-  fun_name : string loc;
-  fun_args : (string loc * string loc) list;
-  fun_rety : string loc option;
-  fun_body : exp loc
+  fun_name : ident;
+  fun_args : (ident * ident) list;
+  fun_rety : ident option;
+  fun_body : exp
 }
 
+let rec var_pos = function
+  | Vsimple id -> id.pos
+  | Vsubscript(p, _, _) | Vfield(p, _, _) -> p
+
+and exp_pos = function
+  | Eunit p | Eint(p, _) | Estring(p, _) | Enil p -> p
+  | Evar v -> var_pos v
+  | Ebinop(p, _, _, _) | Eassign(p, _, _) | Ecall(p, _, _) -> p
+  | Eseq(e, _) -> exp_pos e
+  | Earray(p, _, _, _) | Erecord(p, _, _)
+  | Eif(p, _, _, _) | Ewhile(p, _, _) | Efor(p, _, _, _, _) -> p
+  | Ebreak p | Elet(p, _, _) -> p

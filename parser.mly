@@ -1,5 +1,8 @@
 %{
   open Ast
+
+  let pos i =
+    Parsing.rhs_start_pos i
 %}
 
 %token ARRAY OF
@@ -23,7 +26,7 @@
 %token <string> STRING
 %token EOF
 
-%type <Ast.exp Ast.loc> program
+%type <Ast.exp> program
 %start program
 
 %left THEN
@@ -40,18 +43,34 @@
 %%
 
 program:
-    e=loc(exp) EOF
-  { e }
-  ;
+  exp EOF
+  { $1 }
+;
+
+ident:
+  IDENT
+  { { id = $1; pos = pos 1 } }
+;
 
 expseq:
-    xs = separated_list(SEMI, loc(exp))
-  { xs }
-  ;
+  /* empty */
+  { Eunit (Parsing.symbol_start_pos ()) }
+| expseq_tail
+  { $1 }
+;
+
+expseq_tail:
+  exp
+  { $1 }
+| exp SEMI expseq_tail
+  { Eseq($1, $3) }
+;
 
 fields:
-    xs = separated_list(COMMA, separated_pair(loc(IDENT), EQ, loc(exp)))
-  { xs }
+    ident EQ exp
+  { [($1, $3)] }
+  | ident EQ exp COMMA fields
+  { ($1, $3) :: $5 }
   ;
 
 %inline bin:
@@ -70,108 +89,130 @@ fields:
   ;
 
 exp:
-    INT
-  { Eint $1 }
-  | STRING
-  { Estring $1 }
-  | NIL
-  { Enil }
-  | v=var
-  { v }
-  | MINUS x=loc(exp) %prec unary_op
-  { Ebinop ((Eint 0, Loc.make $startpos ($startpos(x))), Op_sub, x) }
-  | x=loc(exp) op=bin y=loc(exp)
-  { Ebinop (x, op, y) }
-  | v=loc(var) COLONEQ e=loc(exp)
-  { let (v, loc) = v in
-    match v with
-    | Esimple x -> Eassign (x, e)
-    | Eload (v, x) -> Estore (v, x, e)
-    | Eget (v, x) -> Eput (v, x, e)
-    | _ -> assert false }
-  | x=loc(IDENT) LPAREN xs=separated_list(COMMA, loc(exp)) RPAREN
-  { Ecall (x, xs) }
-  | LPAREN expseq RPAREN
-  { Eseq $2 }
-  | x=loc(IDENT) LCURLY xs=fields RCURLY
-  { Erecord (x, xs) }
-  | i=loc(IDENT) LBRACK x=loc(exp) RBRACK OF y=loc(exp)
-  { Earray (i, x, y) }
-  | IF x=loc(exp) THEN y=loc(exp)
-  { Eif (x, y, None) }
-  | IF x=loc(exp) THEN y=loc(exp) ELSE z=loc(exp)
-  { Eif (x, y, Some z) }
-  | WHILE x=loc(exp) DO y=loc(exp)
-  { Ewhile (x, y) }
-  | FOR i=IDENT COLONEQ x=loc(exp) TO y=loc(exp) DO z=loc(exp)
-  { Efor (i, x, y, z) }
-  | BREAK
-  { Ebreak }
-  | LET e=letexp
-  { e }
+  INT         { Eint(pos 1, $1) }
+| STRING      { Estring(pos 1, $1) }
+| NIL         { Enil(pos 1) }
+| var         { Evar $1 }
+| MINUS exp %prec unary_op              { Ebinop(pos 1, Eint(pos 1, 0), Op_sub, $2) }
+| x=exp op=bin y=exp                    { Ebinop(pos 2, x, op, y) }
+| var COLONEQ exp                       { Eassign(pos 2, $1, $3) }
+| ident LPAREN exp_list RPAREN          { Ecall(pos 1, $1, $3) }
+| LPAREN expseq RPAREN                  { $2 }
+| ident LCURLY fields RCURLY            { Erecord(pos 2, $1, $3) }
+| ident LBRACK exp RBRACK OF exp        { Earray(pos 2, $1, $3, $6) }
+| IF exp THEN exp                       { Eif(pos 1, $2, $4, Eunit(pos 4)) }
+| IF exp THEN exp ELSE exp              { Eif(pos 1, $2, $4, $6) }
+| WHILE exp DO exp                      { Ewhile(pos 1, $2, $4) }
+| FOR ident COLONEQ exp TO exp DO exp   { Efor(pos 1, $2, $4, $6, $8) }
+| BREAK                                 { Ebreak(pos 1) }
+| LET decs IN expseq END { List.fold_right (fun (p, d) e -> Elet(p, d, e)) $2 $4 }
+;
+
+exp_list:
+  /* empty */
+  { [] }
+  | exp_list_tail
+  { $1 }
   ;
 
-%inline loc(X):
-    x=X     { (x, Loc.make $startpos $endpos) }
-  ;
+exp_list_tail:
+  exp
+  { [$1] }
+| exp COMMA exp_list_tail
+{ $1 :: $3 }
+;
 
 var:
-    i=loc(IDENT)  { Esimple i }
-  | longvar       { $1 }
+    ident
+  { Vsimple $1 }
+  | var LBRACK exp RBRACK
+  { Vsubscript(pos 2, $1, $3) }
+  | var DOT ident
+  { Vfield(pos 2, $1, $3) }
   ;
 
-longvar:
-    i=loc(IDENT) LBRACK e=loc(exp) RBRACK
-  { Eload ((Esimple i, Loc.make ($startpos(i)) ($endpos(i))), e) }
-  | v=loc(var) DOT i=loc(IDENT)
-  { Eget (v, i) }
+decs:
+    vardec decs_vtf
+  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  | typdecs decs_vf
+  { (pos 1, Dtypes $1) :: $2 }
+  | fundec_list decs_vt
+  { (pos 1, Dfuns $1) :: $2 }
   ;
 
-letexp:
-    v=vardec ee=loc(letexp2)
-  { let (x, y, e) = v in Eletvar (x, y, e, ee) }
-  | ts=typdecs e=loc(letexp2)
-  { Elettype (ts, e) }
-  | fs=fundecs e=loc(letexp2)
-  { Eletfuns (fs, e) }
+decs_vtf:
+    /* empty */
+  { [] }
+  | vardec decs_vtf
+  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  | typdecs decs_vf
+  { (pos 1, Dtypes $1) :: $2 }
+  | fundec_list decs_vt
+  { (pos 1, Dfuns $1) :: $2 }
   ;
 
-letexp2:
-    letexp              { $1 }
-  | IN ee = expseq END  { Eseq ee }
+decs_vf:
+    /* empty */
+  { [] }
+  | vardec decs_vtf
+  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  | fundec_list decs_vt
+  { (pos 1, Dfuns $1) :: $2 }
+  ;
+
+decs_vt:
+    /* empty */
+  { [] }
+  | vardec decs_vtf
+  { let (x, y, e) = $1 in (pos 1, Dvar (x, y, e)) :: $2 }
+  | typdecs decs_vf
+  { (pos 1, Dtypes $1) :: $2 }
   ;
 
 vardec:
-    VAR x=IDENT y = option(preceded(COLON, loc(IDENT))) COLONEQ e=loc(exp)
-  { (x, y, e) }
+  VAR ident optional_var_type COLONEQ exp
+  { ($2, $3, $5) }
+  ;
+
+optional_var_type:
+  /* empty */
+  { None }
+  | COLON ident
+  { Some $2 }
   ;
 
 typdecs:
-    xs=nonempty_list(preceded(TYPE, separated_pair(IDENT, EQ, typ)))
-  { xs }
+  TYPE ident EQ typ
+  { [($2, $4)] }
+  | TYPE ident EQ typ typdecs
+  { ($2, $4) :: $5 }
   ;
 
 typfields:
-    xs=separated_list(COMMA, separated_pair(loc(IDENT), COLON, loc(IDENT)))
-  { xs }
+  ident COLON ident
+  { [($1, $3)] }
+| ident COLON ident COMMA typfields
+{ ($1, $3) :: $5 }
   ;
 
 typ:
-    i=loc(IDENT)                { Tname i }
-  | ARRAY OF i=loc(IDENT)       { Tarray i }
-  | LCURLY xs=typfields RCURLY  { Trecord xs } 
+    ident                { Tname $1 }
+  | ARRAY OF ident       { Tarray $3 }
+  | LCURLY typfields RCURLY  { Trecord $2 } 
   ;
 
-fundecs:
-    xs=nonempty_list(fundec)
-  { xs }
+fundec_list:
+    fundec
+    { [$1] }
+| fundec fundec_list
+  { $1 :: $2 }
   ;
 
 fundec:
-  FUNCTION x=loc(IDENT) LPAREN xs=typfields RPAREN
-    y = option(preceded(COLON, loc(IDENT))) EQ z=loc(exp)
+  FUNCTION ident LPAREN typfields RPAREN
+    optional_var_type EQ exp
   {
-    { fun_name = x; fun_args = xs;
-      fun_rety = y; fun_body = z }
+    { fun_name = $2; fun_args = $4;
+      fun_rety = $6; fun_body = $8 }
   }
   ;

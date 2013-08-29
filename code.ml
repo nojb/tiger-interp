@@ -39,7 +39,7 @@ type code =
   | Candalso of code * code
   | Corelse of code * code
   | Ccall of proc * code array
-  | Cseq of code array
+  | Cseq of code * code
   | Cmakearray of code * code
   | Cmakerecord of code array
   | Cif of code * code * code

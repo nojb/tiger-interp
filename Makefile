@@ -1,5 +1,5 @@
 all:
-	ocamlbuild tiger_main.native
+	ocamlbuild main.native
 
 clean:
 	ocamlbuild -clean
