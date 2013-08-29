@@ -1,5 +1,5 @@
 all:
-	ocamlbuild main.native
+	ocamlbuild main.byte
 
 clean:
 	ocamlbuild -clean

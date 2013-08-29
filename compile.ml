@@ -21,8 +21,17 @@ type error =
   | Not_enough_fields
   | Too_many_fields
   | Bad_cyclic_types
+  | Illegal_comparison of cmp
 
 exception Error of Lexing.position * error
+
+let cmp_op = function
+  | Eq -> Ceq
+  | Ne -> Cne
+  | Le -> Cle
+  | Lt -> Clt
+  | Ge -> Cge
+  | Gt -> Cgt
 
 module M = Map.Make (String)
 
@@ -188,30 +197,25 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cdiv(p.Lexing.pos_lnum, e1, e2), TIGint
-  | Ebinop(_, x, Op_eq, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Cicmp(e1, Ceq, e2), TIGint
-  | Ebinop(_, x, Op_ne, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Cicmp(e1, Cne, e2), TIGint
-  | Ebinop(_, x, Op_leq, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Cicmp(e1, Cle, e2), TIGint
-  | Ebinop(_, x, Op_lt, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Cicmp(e1, Clt, e2), TIGint
-  | Ebinop(_, x, Op_geq, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Cicmp(e1, Cge, e2), TIGint
-  | Ebinop(_, x, Op_gt, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Cicmp(e1, Cgt, e2), TIGint
+  | Ebinop(p, x, Ocmp cmp, Enil _)
+  | Ebinop(p, Enil _, Ocmp cmp, x) ->
+      let x, t = type_exp tenv venv inloop x in
+      begin match unroll tenv t, cmp with
+      | TIGrecord _, Eq
+      | TIGrecord _, Ne -> Cpcmp(x, cmp_op cmp, Cquote(Vrecord None)), TIGint
+      | TIGrecord _, _ -> raise (Error(p, Illegal_comparison cmp))
+      | _ as t, _ -> raise (Error(p, Expected_record t))
+      end
+  | Ebinop(_, x, Ocmp cmp, y) ->
+      let e1, t1 = type_exp tenv venv inloop x in
+      let e2 = exp_with_type tenv venv inloop y t1 in
+      begin match unroll tenv t1, cmp with
+      | TIGint, _ -> Cicmp(e1, cmp_op cmp, e2), TIGint
+      | TIGstring, _ -> Cscmp(e1, cmp_op cmp, e2), TIGint
+      | TIGrecord _, Eq | TIGrecord _, Ne
+      | TIGarray _, Eq | TIGarray _, Ne -> Cpcmp(e1, cmp_op cmp, e2), TIGint
+      | _ -> assert false (* FIXME *)
+      end
   | Eassign(_, Vsimple id, Enil _) ->
       let t, d, i = find_variable id venv in
       begin match unroll tenv t with
@@ -452,6 +456,8 @@ let error_message = function
   | Too_many_fields -> "too many fields"
   | Bad_cyclic_types ->
       "cyclic type declaration does not pass through a record type"
+  | Illegal_comparison _ ->
+      "illegal use of comparison operator"
 
 let transl_program e =
   try

@@ -6,10 +6,12 @@ type ident = {
   pos : pos
 }
 
+type cmp =
+  | Eq | Le | Ge | Lt | Gt | Ne
+
 type bin =
   | Op_add | Op_sub | Op_mul | Op_div
-  | Op_eq | Op_leq | Op_geq | Op_ne
-  | Op_gt | Op_lt
+  | Ocmp of cmp
 
 type typ =
   | Tname     of ident

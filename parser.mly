@@ -86,12 +86,12 @@ exp:
 | exp MINUS exp { Ebinop(pos 2, $1, Op_sub, $3) }
 | exp TIMES exp { Ebinop(pos 2, $1, Op_mul, $3) }
 | exp SLASH exp { Ebinop(pos 2, $1, Op_div, $3) }
-| exp EQ exp { Ebinop(pos 2, $1, Op_eq, $3) }
-| exp NE exp { Ebinop(pos 2, $1, Op_ne, $3) }
-| exp LE exp { Ebinop(pos 2, $1, Op_leq, $3) }
-| exp LT exp { Ebinop(pos 2, $1, Op_lt, $3) }
-| exp GE exp { Ebinop(pos 2, $1, Op_geq, $3) }
-| exp GT exp { Ebinop(pos 2, $1, Op_gt, $3) }
+| exp EQ exp { Ebinop(pos 2, $1, Ocmp Eq, $3) }
+| exp NE exp { Ebinop(pos 2, $1, Ocmp Ne, $3) }
+| exp LE exp { Ebinop(pos 2, $1, Ocmp Le, $3) }
+| exp LT exp { Ebinop(pos 2, $1, Ocmp Lt, $3) }
+| exp GE exp { Ebinop(pos 2, $1, Ocmp Ge, $3) }
+| exp GT exp { Ebinop(pos 2, $1, Ocmp Gt, $3) }
 | var COLONEQ exp                       { Eassign(pos 2, $1, $3) }
 | ident LPAREN exp_list RPAREN          { Ecall(pos 1, $1, $3) }
 | LPAREN expseq RPAREN                  { $2 }

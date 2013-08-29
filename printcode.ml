@@ -67,7 +67,8 @@ let rec code ppf = function
   | Csub(c1, c2) ->
       fprintf ppf "@[<2>(-@ %a@ %a)@]" code c1 code c2
   | Cicmp(c1, cmp, c2)
-  | Cscmp(c1, cmp, c2) ->
+  | Cscmp(c1, cmp, c2)
+  | Cpcmp(c1, cmp, c2) ->
       fprintf ppf "@[<2>(%s@ %a@ %a)@]"
         (string_of_comparison cmp) code c1 code c2
   | Ccall(p, ca) ->

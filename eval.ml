@@ -113,6 +113,14 @@ let scmp v1 cmp v2 =
   | Vstring s1, Cgt, Vstring s2 -> Vint (if s1  > s2 then 1 else 0)
   | _ -> assert false
 
+let pcmp v1 cmp v2 =
+  match v1, cmp, v2 with
+  | Varray a1, Ceq, Varray a2 -> Vint (if a1 == a2 then 1 else 0)
+  | Varray a1, Cne, Varray a2 -> Vint (if a1 != a2 then 1 else 0)
+  | Vrecord r1, Ceq, Vrecord r2 -> Vint (if r1 == r2 then 1 else 0)
+  | Vrecord r1, Cne, Vrecord r2 -> Vint (if r1 != r2 then 1 else 0)
+  | _ -> assert false
+
 let rec eval_int disp e =
   match eval disp e with
   | Vint n -> n
@@ -157,6 +165,8 @@ and eval disp = function
       icmp (eval disp e1) cmp (eval disp e2)
   | Cscmp(e1, cmp, e2) ->
       scmp (eval disp e1) cmp (eval disp e2)
+  | Cpcmp(e1, cmp, e2) ->
+      pcmp (eval disp e1) cmp (eval disp e2)
   | Ccall(p, ea) ->
       call disp p (Array.map (eval disp) ea)
   | Cseq(e1, e2) ->
