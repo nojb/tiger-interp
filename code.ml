@@ -20,7 +20,6 @@ type primitive =
   | Pconcat
   | Pnot
   | Pexit
-  | Psizea
 
 type code =
   | Cquote of value

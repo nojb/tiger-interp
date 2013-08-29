@@ -21,7 +21,6 @@ let string_of_primitive = function
   | Pconcat     -> "concat"
   | Pnot        -> "not"
   | Pexit       -> "exit"
-  | Psizea      -> "sizea"
 
 let rec value ppf = function
   | Vunit -> fprintf ppf "()"

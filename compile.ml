@@ -53,11 +53,11 @@ let rec resolve_ty tenv t =
     else begin
       cache := t :: !cache;
       match t with
-      | TIGarray (t, id) ->
-          TIGarray (loop t, id)
-      | TIGrecord (ts, id) ->
-          TIGrecord (List.map (fun (x, t) -> x, loop t) ts, id)
-      | TIGforward name -> begin
+      | TIGarray (id, t) ->
+          TIGarray (id, loop t)
+      | TIGrecord (id, ts) ->
+          TIGrecord (id, List.map (fun (x, t) -> x, loop t) ts)
+      | TIGnamed name -> begin
           try M.find name tenv
           with Not_found -> failwith "undefined forward ref"
         end
@@ -68,12 +68,12 @@ let rec resolve_ty tenv t =
 
 let find_array_type x tenv =
   match find_type x tenv with
-  | TIGarray (t', _) as t -> t, t'
+  | TIGarray (_, t') as t -> t, t'
   | _ -> raise (Error (x.pos, Expected_array_type))
 
 let find_record_type x tenv =
   match find_type x tenv with
-  | TIGrecord (ts, _) as t -> t, ts
+  | TIGrecord (_, ts) as t -> t, ts
   | _ -> raise (Error (x.pos, Expected_record_type))
 
 let find_record_field (x, loc) ts =
@@ -89,13 +89,13 @@ let find_record_field (x, loc) ts =
 let rec array_var tenv venv inloop v =
   let v', t = type_var tenv venv inloop v in
   match t with
-  | TIGarray(t', _) -> v', t'
+  | TIGarray(_, t') -> v', t'
   | _ -> raise (Error(var_pos v, Expected_array))
 
 and record_var tenv venv inloop v x =
   let v', t = type_var tenv venv inloop v in
   match t with
-  | TIGrecord(ts, _) ->
+  | TIGrecord(_, ts) ->
       let rec loop i = function
         | [] -> raise (Error(x.pos, Unexpected_field x.id))
         | (x', t) :: xts when x.id = x' -> v', i, t
@@ -107,7 +107,7 @@ and record_var tenv venv inloop v x =
 
 and exp_with_type tenv venv inloop (e : exp) t' : Code.code =
   let e', t = type_exp tenv venv inloop e in
-  if type_equal t t' then e'
+  if type_equal tenv t t' then e'
   else raise (Error(exp_pos e, Type_mismatch(t, t')))
 
 and int_exp tenv venv inloop e =
@@ -340,16 +340,16 @@ and lettype tenv tys =
     match t with
     | Tname (y) -> begin
         try (x.id, M.find y.id tenv)
-        with Not_found -> (x.id, TIGforward y.id)
+        with Not_found -> (x.id, TIGnamed y.id)
       end
     | Tarray y ->
-        (x.id, new_array_type (find_type y tenv))
+        (x.id, TIGarray(x.id, find_type y tenv))
     | Trecord xs ->
         let field (x, t) =
           try (x.id, M.find t.id tenv)
-          with Not_found -> (x.id, TIGforward t.id)
+          with Not_found -> (x.id, TIGnamed t.id)
         in
-        (x.id, new_record_type (List.map field xs))
+        (x.id, TIGrecord(x.id, List.map field xs))
   in
   let tys = List.map deftype tys in
   let tenv = List.fold_left (fun tenv (x, t) ->
@@ -411,15 +411,13 @@ let base_venv () =
     "substring",  [TIGstring; TIGint; TIGint],  TIGstring,  Psubstring;
     "concat",     [TIGstring; TIGstring],       TIGstring,  Pconcat;
     "not",        [TIGint],                     TIGint,     Pnot;
-    "exit",       [TIGint],                     TIGvoid,    Pexit;
-    "sizea",      [TIGanyarray],                TIGint,     Psizea ] in
+    "exit",       [TIGint],                     TIGvoid,    Pexit ] in
   let venv = Env.create () in
   List.iter (fun (name, ts, t, p) ->
     Env.add_primitive venv name (ts, t) p) prims;
   venv
 
 let transl_program e =
-  type_count := 0;
   let venv = base_venv () in
   let e, _ = type_exp base_tenv venv false e in
   let max_static_depth = Env.max_static_depth venv in

@@ -40,8 +40,6 @@ let eval_primitive p va =
       Vint 0
   | Pexit, [| Vint i |] ->
       raise (Exit i)
-  | Psizea, [| Varray a |] ->
-      Vint (Array.length a)
   | _ -> assert false
 
 let load lnum v1 v2 =
