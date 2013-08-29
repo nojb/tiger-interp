@@ -22,6 +22,7 @@ type error =
   | Unexpected_field of string
   | Not_enough_fields
   | Too_many_fields
+  | Bad_cyclic_types
 
 exception Error of Lexing.position * error
 
@@ -46,33 +47,37 @@ let find_type x tenv =
   with
     Not_found -> raise (Error (x.pos, Unbound_type x.id))
 
-let rec resolve_ty tenv t =
-  let cache = ref [] in
-  let rec loop t =
-    if List.exists (fun t' -> t' == t) !cache then t
+let rec check_type tenv (x, t) =
+  let visited = ref [] in
+  let rec loop thru_record t =
+    if List.memq t !visited then
+      if thru_record then ()
+      else raise (Error(x.pos, Bad_cyclic_types))
     else begin
-      cache := t :: !cache;
+      visited := t :: !visited;
       match t with
-      | TIGarray (id, t) ->
-          TIGarray (id, loop t)
-      | TIGrecord (id, ts) ->
-          TIGrecord (id, List.map (fun (x, t) -> x, loop t) ts)
-      | TIGnamed name -> begin
-          try M.find name tenv
-          with Not_found -> failwith "undefined forward ref"
-        end
-      | _ as t ->
-          t
+      | TIGvoid | TIGint | TIGstring -> ()
+      | TIGarray (_, t) ->
+          loop thru_record t
+      | TIGrecord (_, xts) ->
+          List.iter (fun (_, t) -> loop true t) xts
+      | TIGnamed y ->
+          begin try
+            loop thru_record (M.find y tenv)
+          with
+            Not_found -> raise (Error(x.pos, Unbound_type y))
+            (* FIXME x.p != position of y in general *)
+          end
     end
-  in loop t
+  in loop false (M.find x.id tenv)
 
 let find_array_type x tenv =
-  match find_type x tenv with
+  match unroll tenv (find_type x tenv) with
   | TIGarray (_, t') as t -> t, t'
   | _ -> raise (Error (x.pos, Expected_array_type))
 
 let find_record_type x tenv =
-  match find_type x tenv with
+  match unroll tenv (find_type x tenv) with
   | TIGrecord (_, ts) as t -> t, ts
   | _ -> raise (Error (x.pos, Expected_record_type))
 
@@ -88,13 +93,13 @@ let find_record_field (x, loc) ts =
 
 let rec array_var tenv venv inloop v =
   let v', t = type_var tenv venv inloop v in
-  match t with
+  match unroll tenv t with
   | TIGarray(_, t') -> v', t'
   | _ -> raise (Error(var_pos v, Expected_array))
 
 and record_var tenv venv inloop v x =
   let v', t = type_var tenv venv inloop v in
-  match t with
+  match unroll tenv t with
   | TIGrecord(_, ts) ->
       let rec loop i = function
         | [] -> raise (Error(x.pos, Unexpected_field x.id))
@@ -336,26 +341,22 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
 (** Translation of types *)
 
 and lettype tenv tys =
-  let deftype (x, t) =
-    match t with
-    | Tname (y) -> begin
-        try (x.id, M.find y.id tenv)
-        with Not_found -> (x.id, TIGnamed y.id)
-      end
-    | Tarray y ->
-        (x.id, TIGarray(x.id, find_type y tenv))
-    | Trecord xs ->
-        let field (x, t) =
-          try (x.id, M.find t.id tenv)
-          with Not_found -> (x.id, TIGnamed t.id)
-        in
-        (x.id, TIGrecord(x.id, List.map field xs))
+  let find_type x tenv =
+    try M.find x.id tenv
+    with Not_found -> TIGnamed x.id
   in
-  let tys = List.map deftype tys in
-  let tenv = List.fold_left (fun tenv (x, t) ->
-    M.add x t tenv) tenv tys in
-  let tenv = List.fold_left (fun tenv (x, t) ->
-    M.add x (resolve_ty tenv t) tenv) tenv tys in
+  let deftype tenv (x, t) =
+    match t with
+    | Tname (y) ->
+        M.add x.id (find_type y tenv) tenv
+    | Tarray y ->
+        M.add x.id (TIGarray(x.id, find_type y tenv)) tenv
+    | Trecord xs ->
+        let field (x, t) = (x.id, find_type t tenv) in
+        M.add x.id (TIGrecord(x.id, List.map field xs)) tenv
+  in
+  let tenv = List.fold_left deftype tenv tys in
+  List.iter (check_type tenv) tys;
   tenv
 
 (** Translation of functions *)
