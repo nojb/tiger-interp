@@ -70,10 +70,6 @@ let rec code ppf = function
   | Cscmp(c1, cmp, c2) ->
       fprintf ppf "@[<2>(%s@ %a@ %a)@]"
         (string_of_comparison cmp) code c1 code c2
-  | Candalso(c1, c2) ->
-      fprintf ppf "@[<2>(and@ %a@ %a)@]" code c1 code c2
-  | Corelse(c1, c2) ->
-      fprintf ppf "@[<2>(or@ %a@ %a)@]" code c1 code c2
   | Ccall(p, ca) ->
       let args ppf ca =
         Array.iter (fun a -> fprintf ppf "@ %a" code a) ca in

@@ -206,14 +206,6 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cicmp(e1, Cgt, e2), TIGint
-  | Ebinop(_, x, Op_and, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Candalso(e1, e2), TIGint
-  | Ebinop(_, x, Op_or, y) ->
-      let e1 = int_exp tenv venv inloop x in
-      let e2 = int_exp tenv venv inloop y in
-      Corelse(e1, e2), TIGint
   | Eassign(_, Vsimple id, Enil _) ->
       let t, d, i = find_variable id venv in
       begin match unroll tenv t with

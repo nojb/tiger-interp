@@ -157,12 +157,6 @@ and eval disp = function
       icmp (eval disp e1) cmp (eval disp e2)
   | Cscmp(e1, cmp, e2) ->
       scmp (eval disp e1) cmp (eval disp e2)
-  | Candalso(e1, e2) ->
-      if eval_int disp e1 <> 0 then eval disp e2
-      else Vint 0
-  | Corelse(e1, e2) ->
-      let n = eval_int disp e1 in
-      if n = 0 then eval disp e2 else (Vint n)
   | Ccall(p, ea) ->
       call disp p (Array.map (eval disp) ea)
   | Cseq(e1, e2) ->

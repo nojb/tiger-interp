@@ -9,7 +9,7 @@ type ident = {
 type bin =
   | Op_add | Op_sub | Op_mul | Op_div
   | Op_eq | Op_leq | Op_geq | Op_ne
-  | Op_gt | Op_lt | Op_and | Op_or
+  | Op_gt | Op_lt
 
 type typ =
   | Tname     of ident

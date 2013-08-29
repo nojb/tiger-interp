@@ -35,8 +35,6 @@ type code =
   | Csub of code * code
   | Cicmp of code * comparison * code
   | Cscmp of code * comparison * code
-  | Candalso of code * code
-  | Corelse of code * code
   | Ccall of proc * code array
   | Cseq of code * code
   | Cmakearray of code * code
