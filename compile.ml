@@ -129,7 +129,7 @@ and void_exp tenv venv inloop e =
   exp_with_type tenv venv inloop e TIGvoid
 
 and transl_call tenv venv inloop x xs =
-  let func = Env.find_function venv x.id in
+  let func = find_function x venv in
   let (ts, t) = func.Env.fn_signature in
 
   if List.length xs <> List.length ts then
