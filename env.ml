@@ -1,6 +1,8 @@
 open Types
 open Code
 
+module StringMap = Map.Make(String)
+
 type variable_info = {
   var_depth : int;
   var_frame_index : int;
@@ -24,14 +26,14 @@ type env = {
   env_frame_size : int ref;
   env_depth : int;
   env_max_depth : int ref;
-  mutable env_bindings : symbol_info M.t
+  mutable env_bindings : symbol_info StringMap.t
 }
 
 let create () = {
   env_frame_size = ref 0;
   env_depth = 0;
   env_max_depth = ref 0;
-  env_bindings = M.empty
+  env_bindings = StringMap.empty
 }
 
 let new_frame env =
@@ -53,12 +55,12 @@ let add_variable env name ty =
   let idx = !(env.env_frame_size) in
   incr env.env_frame_size;
   env.env_bindings <-
-    M.add name (Svariable {var_type = ty; var_depth = env.env_depth;
+    StringMap.add name (Svariable {var_type = ty; var_depth = env.env_depth;
       var_frame_index = idx}) env.env_bindings;
   env.env_depth, idx
 
 let find_variable env name =
-  match M.find name env.env_bindings with
+  match StringMap.find name env.env_bindings with
   | Svariable v -> v
   | Sfunction _ -> raise Not_found
 
@@ -66,14 +68,14 @@ let add_function env name sg =
   let dummy_desc = { proc_frame_size = 0; proc_code = Cquote Vunit; proc_depth =
     env.env_depth + 1; proc_name = name } in
   env.env_bindings <-
-    M.add name (Sfunction {fn_signature = sg; fn_desc = User dummy_desc}) env.env_bindings
+    StringMap.add name (Sfunction {fn_signature = sg; fn_desc = User dummy_desc}) env.env_bindings
 
 let add_primitive env name sg p =
   env.env_bindings <-
-    M.add name (Sfunction {fn_signature = sg; fn_desc = Builtin p}) env.env_bindings
+    StringMap.add name (Sfunction {fn_signature = sg; fn_desc = Builtin p}) env.env_bindings
 
 let find_function env name =
-  match M.find name env.env_bindings with
+  match StringMap.find name env.env_bindings with
   | Svariable _ -> raise Not_found
   | Sfunction f -> f
 

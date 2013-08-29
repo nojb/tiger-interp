@@ -3,9 +3,16 @@ type tiger_type =
   | TIGint
   | TIGstring
   | TIGarray of tiger_type * int
-  | TIGrecord of (string * tiger_type) array * int
+  | TIGrecord of (string * tiger_type) list * int
   | TIGforward of string
   | TIGanyarray
+
+module StringMap = Map.Make(String)
+
+let rec unroll env t =
+  match t with
+  | TIGforward id -> unroll env (StringMap.find id env)
+  | _ -> t
 
 let rec type_equal t1 t2 =
   match t1, t2 with
@@ -30,8 +37,6 @@ let new_record_type ts =
   incr type_count;
   TIGrecord (ts, !type_count)
 
-module M = Map.Make (String)
-
 let base_tenv =
-  M.add "int" TIGint
-    (M.add "string" TIGstring M.empty)
+  StringMap.add "int" TIGint
+    (StringMap.add "string" TIGstring StringMap.empty)

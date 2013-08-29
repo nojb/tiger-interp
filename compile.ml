@@ -11,12 +11,17 @@ type error =
   | Unknown_field of string
   | Expected_array
   | Expected_record
-  | Type_mismatch
+  | Type_mismatch of tiger_type * tiger_type
   | Expected_int
   | Expected_void
   | Bad_arity of int * int
   | Illegal_nil
   | Illegal_break
+  | Expected_record_array_elements
+  | Expected_record_field
+  | Unexpected_field of string
+  | Not_enough_fields
+  | Too_many_fields
 
 exception Error of Lexing.position * error
 
@@ -51,7 +56,7 @@ let rec resolve_ty tenv t =
       | TIGarray (t, id) ->
           TIGarray (loop t, id)
       | TIGrecord (ts, id) ->
-          TIGrecord (Array.map (fun (x, t) -> x, loop t) ts, id)
+          TIGrecord (List.map (fun (x, t) -> x, loop t) ts, id)
       | TIGforward name -> begin
           try M.find name tenv
           with Not_found -> failwith "undefined forward ref"
@@ -91,11 +96,11 @@ and record_var tenv venv inloop v x =
   let v', t = type_var tenv venv inloop v in
   match t with
   | TIGrecord(ts, _) ->
-      let rec loop i =
-        let (x', t) = ts.(i) in
-        if x' = x.id then v', i, t
-        else loop (i+1)
-      in loop 0
+      let rec loop i = function
+        | [] -> raise (Error(x.pos, Unexpected_field x.id))
+        | (x', t) :: xts when x.id = x' -> v', i, t
+        | _ :: xts -> loop (i+1) xts
+      in loop 0 ts
   | _ -> raise (Error(var_pos v, Expected_record))
 
 (** Translation of expressions *)
@@ -103,26 +108,20 @@ and record_var tenv venv inloop v x =
 and exp_with_type tenv venv inloop (e : exp) t' : Code.code =
   let e', t = type_exp tenv venv inloop e in
   if type_equal t t' then e'
-  else raise (Error(exp_pos e, Type_mismatch))
+  else raise (Error(exp_pos e, Type_mismatch(t, t')))
 
 and int_exp tenv venv inloop e =
-  let e', t = type_exp tenv venv inloop e in
-  match t with
-  | TIGint -> e'
-  | _ -> raise (Error(exp_pos e, Expected_int))
+  exp_with_type tenv venv inloop e TIGint
 
 and void_exp tenv venv inloop e =
-  let e', t = type_exp tenv venv inloop e in
-  match t with
-  | TIGvoid -> e'
-  | _ -> raise (Error(exp_pos e, Expected_void))
+  exp_with_type tenv venv inloop e TIGvoid
 
 and transl_call tenv venv inloop x xs =
   let func = Env.find_function venv x.id in
   let (ts, t) = func.Env.fn_signature in
 
   if List.length xs <> List.length ts then
-    raise (Error(x.pos, Bad_arity (List.length ts, List.length xs)));
+    raise (Error(x.pos, Bad_arity(List.length ts, List.length xs)));
 
   let rec loop args xs ts =
     match xs, ts with
@@ -210,22 +209,44 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Corelse(e1, e2), TIGint
-  (* | P.Eassign (v, (P.Enil, _)) -> FIXME NIL FIXME
-      let v,  _ = record_var var v in
-      Eassign (v, Eint 0), Tvoid *)
+  | Eassign(_, Vsimple id, Enil _) ->
+      let t, d, i = find_variable id venv in
+      begin match unroll tenv t with
+      | TIGrecord _ ->
+          Cset(d, i, Cquote(Vrecord None)), TIGvoid
+      | _ ->
+          raise (Error(id.pos, Expected_record))
+      end
   | Eassign(_, Vsimple id, e) ->
       let t, d, i = find_variable id venv in
       let e = exp_with_type tenv venv inloop e t in
       Cset(d, i, e), TIGvoid
+  | Eassign(_, Vsubscript(_, v, x), Enil _) ->
+      let v', t = array_var tenv venv inloop v in
+      begin match unroll tenv t with
+      | TIGrecord _ ->
+          let x = int_exp tenv venv inloop x in
+          Cstore(v', x, Cquote(Vrecord None)), TIGvoid
+      | _ ->
+          raise (Error(var_pos v, Expected_record_array_elements))
+      end
   | Eassign(_, Vsubscript(_, v, x), e) ->
       let v, t = array_var tenv venv inloop v in
       let x = int_exp tenv venv inloop x in
       let e = exp_with_type tenv venv inloop e t in
       Cstore (v, x, e), TIGvoid
+  | Eassign(_, Vfield(_, v, x), Enil _) ->
+      let v', i, t = record_var tenv venv inloop v x in
+      begin match unroll tenv t with
+      | TIGrecord _ ->
+          Csetf(v', i, Cquote(Vrecord None)), TIGvoid
+      | _ ->
+          raise (Error(var_pos v, Expected_record_field))
+      end
   | Eassign(_, Vfield(_, v, x), e) ->
       let v, i, t = record_var tenv venv inloop v x in
       let e = exp_with_type tenv venv inloop e t in
-      Csetf (v, i, e), TIGvoid
+      Csetf(v, i, e), TIGvoid
   | Ecall(_, x, xs) ->
       (* FIXME loc *)
       transl_call tenv venv inloop x xs
@@ -233,19 +254,45 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let x, _ = type_exp tenv venv inloop x in
       let y, t = type_exp tenv venv inloop y in
       Cseq(x, y), t
-  | Earray(_, x, y, z) -> (* FIXME typecheck *)
+  | Earray(_, x, y, Enil _) ->
+      let t, t' = find_array_type x tenv in
+      begin match unroll tenv t' with
+      | TIGrecord _ ->
+          let y = int_exp tenv venv inloop y in
+          Cmakearray(y, Cquote(Vrecord(None))), t
+      | _ ->
+          raise (Error(x.pos, Expected_record_array_elements))
+      end
+  | Earray(_, x, y, z) ->
+      let t, t' = find_array_type x tenv in
       let y = int_exp tenv venv inloop y in
-      let z, t = type_exp tenv venv inloop z in
-      Cmakearray(y, z), find_type x tenv
-  | Erecord(_, t, xs) -> (* FIXME typecheck *)
-      Cmakerecord(Array.of_list
-        (List.map (fun (_, x) ->
-          let e, _ = type_exp tenv venv inloop x in e) xs)), find_type t tenv
+      let z = exp_with_type tenv venv inloop z t' in
+      Cmakearray(y, z), t
+  | Erecord(p, t, xs) ->
+      let t, ts = find_record_type t tenv in
+      let rec bind vs = function
+        | [], [] ->
+            Cmakerecord(Array.of_list (List.rev vs)), t
+        | (x, Enil _) :: xts, (x', t) :: ts ->
+            if x.id = x' then
+              bind (Cquote(Vrecord None) :: vs) (xts, ts)
+            else
+              raise (Error(x.pos, Unexpected_field x.id))
+        | (x, e) :: xts, (x', t) :: ts ->
+            if x.id = x' then
+              let e = exp_with_type tenv venv inloop e t in
+              bind (e :: vs) (xts, ts)
+            else
+              raise (Error(x.pos, Unexpected_field x.id))
+        | [], _ ->
+            raise (Error(p, Not_enough_fields))
+        | _, [] ->
+            raise (Error(p, Too_many_fields))
+      in bind [] (xs, ts)
   | Eif(_, x, y, z) ->
       let e1 = int_exp tenv venv inloop x in
       let e2, t2 = type_exp tenv venv inloop y in
-      let e3, t3 = type_exp tenv venv inloop z in
-      (* FIXME check types *)
+      let e3 = exp_with_type tenv venv inloop z t2 in
       Cif(e1, e2, e3), t2
   | Ewhile(_, x, y) ->
       let e1 = int_exp tenv venv inloop x in
@@ -302,7 +349,7 @@ and lettype tenv tys =
           try (x.id, M.find t.id tenv)
           with Not_found -> (x.id, TIGforward t.id)
         in
-        (x.id, new_record_type (Array.of_list (List.map field xs)))
+        (x.id, new_record_type (List.map field xs))
   in
   let tys = List.map deftype tys in
   let tenv = List.fold_left (fun tenv (x, t) ->
