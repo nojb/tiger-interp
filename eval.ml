@@ -180,27 +180,31 @@ and eval disp = function
       eval disp (if eval_int disp e1 <> 0 then e2 else e3)
   | Cwhile(e1, e2) ->
       let rec loop v1 =
-        if v1 <> 0 then
-          try
+        if v1 <> 0 then begin
             ignore (eval disp e2);
             loop (eval_int disp e1)
-          with Break -> Vunit
-        else
-          Vunit
-      in loop (eval_int disp e1)
+        end
+      in begin try
+        loop (eval_int disp e1);
+        Vunit
+      with
+        Break -> Vunit
+      end
   | Cfor(d, i, e1, e2, e3) ->
       let v1 = eval_int disp e1 in
       let v2 = eval_int disp e2 in
       let rec loop u =
-        if u > v2 then Vunit
-        else begin
+        if u <= v2 then begin
           disp.(d).(i) <- Vint u;
-          try
-            ignore (eval disp e3);
-            loop (u + 1)
-          with Break -> Vunit
+          ignore (eval disp e3);
+          loop (u + 1)
         end
-      in loop v1
+      in begin try
+        loop v1;
+        Vunit
+      with
+        Break -> Vunit
+      end
   | Cbreak ->
       raise Break
   | Cprim(p, ea) ->
