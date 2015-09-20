@@ -1,5 +1,5 @@
 %{
-  open Error
+  open! Error
   open Ast
 
   let pos i =
@@ -201,7 +201,7 @@ type_field_list_tail:
 typ:
     ident                { Tname $1 }
   | ARRAY OF ident       { Tarray $3 }
-  | LCURLY type_field_list RCURLY  { Trecord $2 } 
+  | LCURLY type_field_list RCURLY  { Trecord $2 }
   ;
 
 fundec_list:

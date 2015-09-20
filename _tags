@@ -1,1 +1,6 @@
 true: debug
+true: bin_annot
+true: safe_string
+true: strict_formats
+true: strict_sequence
+true: warn_error(A), warn(A-4-37)

@@ -47,14 +47,14 @@ let find_function x venv =
     Env.find_function venv x.id
   with
     Not_found -> raise (Error(x.pos, Unbound_function x.id))
-  
+
 let find_type x tenv =
   try
     M.find x.id tenv
   with
     Not_found -> raise (Error (x.pos, Unbound_type x.id))
 
-let rec check_type tenv (x, t) =
+let check_type tenv (x, _) =
   let visited = ref [] in
   let rec loop thru_record t =
     if List.memq t !visited then
@@ -110,7 +110,7 @@ and record_var tenv venv inloop v x =
   | TIGrecord(_, ts) ->
       let rec loop i = function
         | [] -> raise (Error(x.pos, Unexpected_field x.id))
-        | (x', t) :: xts when x.id = x' -> v', i, t
+        | (x', t) :: _ when x.id = x' -> v', i, t
         | _ :: xts -> loop (i+1) xts
       in loop 0 ts
   | _ as t -> raise (Error(var_pos v, Expected_record t))
@@ -279,7 +279,7 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       let rec bind vs = function
         | [], [] ->
             Cmakerecord(Array.of_list (List.rev vs)), t
-        | (x, Enil _) :: xts, (x', t) :: ts ->
+        | (x, Enil _) :: xts, (x', _) :: ts ->
             if x.id = x' then
               bind (Cquote(Vrecord None) :: vs) (xts, ts)
             else

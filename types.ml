@@ -11,9 +11,10 @@ module StringMap = Map.Make(String)
 let rec unroll tenv t =
   match t with
   | TIGnamed id -> unroll tenv (StringMap.find id tenv)
-  | _ -> t
+  | TIGvoid | TIGint | TIGstring | TIGarray _
+  | TIGrecord _ -> t
 
-let rec type_equal tenv t1 t2 =
+let type_equal tenv t1 t2 =
   unroll tenv t1 == unroll tenv t2
 
 let rec describe_type = function
