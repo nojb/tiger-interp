@@ -45,8 +45,8 @@ type primitive =
 
 type code =
   | Cquote of value
-  | Cget of int * int
-  | Cset of int * int * code
+  | Cvar of string
+  | Cassign of string * code
   | Cload of int * code * code
   | Cstore of int * code * code * code
   | Cgetf of int * code * int
@@ -58,22 +58,17 @@ type code =
   | Cicmp of code * comparison * code
   | Cscmp of code * comparison * code
   | Cpcmp of code * comparison * code
-  | Ccall of proc * code array
+  | Ccall of string * code list
   | Cseq of code * code
   | Cmakearray of code * code
-  | Cmakerecord of code array
+  | Cmakerecord of code list
   | Cif of code * code * code
   | Cwhile of code * code
-  | Cfor of int * int * code * code * code
+  | Cfor of string * code * code * code
   | Cbreak
-  | Cprim of primitive * code array
-
-and proc = {
-  mutable proc_code : code;
-  mutable proc_frame_size : int;
-  proc_depth : int;
-  proc_name : string
-}
+  | Cprim of primitive * code list
+  | Clet of string * code * code
+  | Cletrec of (string * string list * code) list * code
 
 let rec string_of_value = function (* loops if circular data type *)
   | Vunit -> ""

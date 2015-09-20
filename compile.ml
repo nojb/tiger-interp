@@ -59,8 +59,7 @@ module M = Map.Make (String)
 
 let find_variable x venv =
   try
-    let vd = Env.find_variable venv x.id in
-    vd.Env.var_type, vd.Env.var_depth, vd.Env.var_frame_index
+    Env.find_variable venv x.id
   with
     Not_found -> raise (Error(x.pos, Unbound_variable x.id))
 
@@ -139,7 +138,7 @@ and record_var tenv venv inloop v x =
 
 (** Translation of expressions *)
 
-and exp_with_type tenv venv inloop (e : exp) t' : Code.code =
+and exp_with_type tenv (venv : Env.env) inloop (e : exp) t' : Code.code =
   let e', t = type_exp tenv venv inloop e in
   if type_equal tenv t t' then e'
   else raise (Error(exp_pos e, Type_mismatch(unroll tenv t, unroll tenv t')))
@@ -160,10 +159,10 @@ and transl_call tenv venv inloop x xs =
   let rec loop args xs ts =
     match xs, ts with
     | [], [] ->
-        let args = Array.of_list (List.rev args) in
         begin match func.Env.fn_desc with
-        | Env.User f -> Ccall (f, args)
-        | Env.Builtin p -> Cprim (p, args) end
+          | Env.User -> Ccall (x.id, List.rev args)
+          | Env.Builtin p -> Cprim (p, args)
+        end
     | Enil p :: xs, t :: ts ->
         begin match unroll tenv t with
         | TIGrecord _ ->
@@ -181,8 +180,8 @@ and transl_call tenv venv inloop x xs =
 and type_var tenv venv inloop v =
   match v with
   | Vsimple id ->
-      let t, d, i = find_variable id venv in
-      Cget(d, i), t
+      let t = find_variable id venv in
+      Cvar id.id, t
   | Vsubscript(p, v, e) ->
       let v, t = array_var tenv venv inloop v in
       let x = int_exp tenv venv inloop e in
@@ -191,36 +190,36 @@ and type_var tenv venv inloop v =
       let v, i, t = record_var tenv venv inloop v id in
       Cgetf(p.Lexing.pos_lnum, v, i), t
 
-and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
+and type_exp tenv (venv : Env.env) inloop (e : exp) : Code.code * Types.tiger_type =
   match e with
   | Eunit _ ->
       Cquote Vunit, TIGvoid
-  | Eint(_, n) ->
+  | Eint (_, n) ->
       Cquote(Vint n), TIGint
-  | Estring(_, s) ->
+  | Estring (_, s) ->
       Cquote(Vstring s), TIGstring
   | Enil p ->
       raise (Error(p, Illegal_nil))
   | Evar v ->
       type_var tenv venv inloop v
-  | Ebinop(_, x, Op_add, y) ->
+  | Ebinop (_, x, Op_add, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cadd(e1, e2), TIGint
-  | Ebinop(_, x, Op_sub, y) ->
+  | Ebinop (_, x, Op_sub, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Csub(e1, e2), TIGint
-  | Ebinop(_, x, Op_mul, y) ->
+  | Ebinop (_, x, Op_mul, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cmul(e1, e2), TIGint
-  | Ebinop(p, x, Op_div, y) ->
+  | Ebinop (p, x, Op_div, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = int_exp tenv venv inloop y in
       Cdiv(p.Lexing.pos_lnum, e1, e2), TIGint
-  | Ebinop(p, x, Ocmp cmp, Enil _)
-  | Ebinop(p, Enil _, Ocmp cmp, x) ->
+  | Ebinop (p, x, Ocmp cmp, Enil _)
+  | Ebinop (p, Enil _, Ocmp cmp, x) ->
       let x, t = type_exp tenv venv inloop x in
       begin match unroll tenv t, cmp with
       | TIGrecord _, Eq
@@ -228,7 +227,7 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       | TIGrecord _, _ -> raise (Error(p, Illegal_comparison cmp))
       | _ as t, _ -> raise (Error(p, Expected_record t))
       end
-  | Ebinop(_, x, Ocmp cmp, y) ->
+  | Ebinop (_, x, Ocmp cmp, y) ->
       let e1, t1 = type_exp tenv venv inloop x in
       let e2 = exp_with_type tenv venv inloop y t1 in
       begin match unroll tenv t1, cmp with
@@ -238,19 +237,19 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       | TIGarray _, Eq | TIGarray _, Ne -> Cpcmp(e1, cmp_op cmp, e2), TIGint
       | _ -> assert false (* FIXME *)
       end
-  | Eassign(_, Vsimple id, Enil _) ->
-      let t, d, i = find_variable id venv in
+  | Eassign (_, Vsimple id, Enil _) ->
+      let t = find_variable id venv in
       begin match unroll tenv t with
       | TIGrecord _ ->
-          Cset(d, i, Cquote(Vrecord None)), TIGvoid
+          Cassign (id.id, Cquote(Vrecord None)), TIGvoid
       | _ as t ->
           raise (Error(id.pos, Expected_record t))
       end
-  | Eassign(_, Vsimple id, e) ->
-      let t, d, i = find_variable id venv in
+  | Eassign (_, Vsimple id, e) ->
+      let t = find_variable id venv in
       let e = exp_with_type tenv venv inloop e t in
-      Cset(d, i, e), TIGvoid
-  | Eassign(p, Vsubscript(_, v, x), Enil _) ->
+      Cassign (id.id, e), TIGvoid
+  | Eassign (p, Vsubscript(_, v, x), Enil _) ->
       let v', t = array_var tenv venv inloop v in
       begin match unroll tenv t with
       | TIGrecord _ ->
@@ -259,12 +258,12 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       | _ ->
           raise (Error(var_pos v, Expected_record_array_elements))
       end
-  | Eassign(p, Vsubscript(_, v, x), e) ->
+  | Eassign (p, Vsubscript(_, v, x), e) ->
       let v, t = array_var tenv venv inloop v in
       let x = int_exp tenv venv inloop x in
       let e = exp_with_type tenv venv inloop e t in
       Cstore (p.Lexing.pos_lnum, v, x, e), TIGvoid
-  | Eassign(p, Vfield(_, v, x), Enil _) ->
+  | Eassign (p, Vfield(_, v, x), Enil _) ->
       let v', i, t = record_var tenv venv inloop v x in
       begin match unroll tenv t with
       | TIGrecord _ ->
@@ -272,17 +271,17 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       | _ ->
           raise (Error(var_pos v, Expected_record_field))
       end
-  | Eassign(p, Vfield(_, v, x), e) ->
+  | Eassign (p, Vfield(_, v, x), e) ->
       let v, i, t = record_var tenv venv inloop v x in
       let e = exp_with_type tenv venv inloop e t in
       Csetf(p.Lexing.pos_lnum, v, i, e), TIGvoid
-  | Ecall(_, x, xs) ->
+  | Ecall (_, x, xs) ->
       transl_call tenv venv inloop x xs
-  | Eseq(x, y) ->
+  | Eseq (x, y) ->
       let x, _ = type_exp tenv venv inloop x in
       let y, t = type_exp tenv venv inloop y in
       Cseq(x, y), t
-  | Earray(_, x, y, Enil _) ->
+  | Earray (_, x, y, Enil _) ->
       let t, t' = find_array_type x tenv in
       begin match unroll tenv t' with
       | TIGrecord _ ->
@@ -291,16 +290,16 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
       | _ ->
           raise (Error(x.pos, Expected_record_array_elements))
       end
-  | Earray(_, x, y, z) ->
+  | Earray (_, x, y, z) ->
       let t, t' = find_array_type x tenv in
       let y = int_exp tenv venv inloop y in
       let z = exp_with_type tenv venv inloop z t' in
       Cmakearray(y, z), t
-  | Erecord(p, t, xs) ->
+  | Erecord (p, t, xs) ->
       let t, ts = find_record_type t tenv in
       let rec bind vs = function
         | [], [] ->
-            Cmakerecord(Array.of_list (List.rev vs)), t
+            Cmakerecord (List.rev vs), t
         | (x, Enil _) :: xts, (x', _) :: ts ->
             if x.id = x' then
               bind (Cquote(Vrecord None) :: vs) (xts, ts)
@@ -317,49 +316,45 @@ and type_exp tenv venv inloop (e : exp) : Code.code * Types.tiger_type =
         | _, [] ->
             raise (Error(p, Too_many_fields))
       in bind [] (xs, ts)
-  | Eif(_, x, y, z) ->
+  | Eif (_, x, y, z) ->
       let e1 = int_exp tenv venv inloop x in
       let e2, t2 = type_exp tenv venv inloop y in
       let e3 = exp_with_type tenv venv inloop z t2 in
       Cif(e1, e2, e3), t2
-  | Ewhile(_, x, y) ->
+  | Ewhile (_, x, y) ->
       let e1 = int_exp tenv venv inloop x in
       let e2 = void_exp tenv venv true y in
       Cwhile(e1, e2), TIGvoid
-  | Efor(_, i, x, y, z) ->
+  | Efor (_, i, x, y, z) ->
       let x = int_exp tenv venv inloop x in
       let y = int_exp tenv venv inloop y in
-      let venv = Env.new_scope venv in
-      let d, i = Env.add_variable venv i.id TIGint in
+      let venv = Env.add_variable venv i.id TIGint in
       let z = void_exp tenv venv true z in
-      Cfor(d, i, x, y, z), TIGvoid
+      Cfor (i.id, x, y, z), TIGvoid
+  | Ebreak _ when inloop ->
+      Cbreak, TIGvoid
   | Ebreak p ->
-      if inloop then Cbreak, TIGvoid
-      else raise (Error(p, Illegal_break))
-  | Elet(_, Dvar(x, None, y), z) ->
+      raise (Error(p, Illegal_break))
+  | Elet (_, Dvar(x, None, y), z) ->
       let y, t = type_exp tenv venv inloop y in
-      let venv = Env.new_scope venv in
-      let d, i = Env.add_variable venv x.id t in
+      let venv = Env.add_variable venv x.id t in
       let z, t = type_exp tenv venv inloop z in
-      Cseq(Cset (d, i, y), z), t
-  | Elet(_, Dvar(x, Some t, Enil _), z) ->
+      Clet (x.id, y, z), t
+  | Elet (_, Dvar(x, Some t, Enil _), z) ->
       let t, _ = find_record_type t tenv in
-      let venv = Env.new_scope venv in
-      let d, i = Env.add_variable venv x.id t in
+      let venv = Env.add_variable venv x.id t in
       let z, t = type_exp tenv venv inloop z in
-      Cseq(Cset (d, i, Cquote(Vrecord None)), z), t
-  | Elet(_, Dvar(x, Some t, y), z) ->
+      Clet (x.id, Cquote(Vrecord None), z), t
+  | Elet (_, Dvar(x, Some t, y), z) ->
       let t = find_type t tenv in
       let y = exp_with_type tenv venv inloop y t in
-      let venv = Env.new_scope venv in
-      let d, i = Env.add_variable venv x.id t in
+      let venv = Env.add_variable venv x.id t in
       let z, t = type_exp tenv venv inloop z in
-      Cseq(Cset (d, i, y), z), t
-  | Elet(_, Dtypes tys, e) ->
+      Clet (x.id, y, z), t
+  | Elet (_, Dtypes tys, e) ->
       type_exp (lettype tenv tys) venv inloop e
-  | Elet(_, Dfuns funs, e) ->
-      let venv = letfuns tenv venv funs in
-      type_exp tenv venv inloop e
+  | Elet (_, Dfuns funs, e) ->
+      type_letrec tenv venv inloop funs e
 
 (** Translation of types *)
 
@@ -384,62 +379,56 @@ and lettype tenv tys =
 
 (** Translation of functions *)
 
-and function_signature tenv fn =
-  let ty = match fn.fun_rety with
-  | None -> TIGvoid
-  | Some t -> find_type t tenv in
-  (List.map (fun (_, t) -> find_type t tenv) fn.fun_args, ty)
+and type_letrec tenv venv inloop funs e =
 
-and function_name fn =
-  fn.fun_name.id
+  let signature_type fn =
+    let ty = match fn.fun_rety with
+      | None -> TIGvoid
+      | Some t -> find_type t tenv in
+    List.map (fun (_, t) -> find_type t tenv) fn.fun_args, ty
+  in
 
-and letfuns tenv venv funs =
+  let function_name fn = fn.fun_name.id in
 
   let declare_function venv func =
-    Env.add_function venv
-      (function_name func)
-      (function_signature tenv func) in
+    let tys, rty = signature_type func in
+    Env.add_function venv (function_name func) tys rty
+  in
 
-  let update_function fn venv body =
-    match fn.Env.fn_desc with
-    | Env.User p ->
-        p.proc_code <- body;
-        p.proc_frame_size <- Env.frame_size venv
-    | _ -> assert false in
-
-  let define_function venv func =
+  let define_function (venv : Env.env) func =
     let fn = Env.find_function venv func.fun_name.id in
     let ts, t = fn.Env.fn_signature in
-    let venv = Env.new_frame venv in
-    List.iter2 (fun (x, _) t ->
-      ignore (Env.add_variable venv x.id t)) func.fun_args ts;
-    let body = exp_with_type tenv venv false func.fun_body t in
-    update_function fn venv body in
+    let venv =
+      List.fold_left2 (fun venv (x, _) t -> Env.add_variable venv x.id t) venv func.fun_args ts
+    in
+    func.fun_name.id, List.map (fun (x, _) -> x.id) func.fun_args, exp_with_type tenv venv false func.fun_body t
+  in
 
-  let venv = Env.new_scope venv in
-  List.iter (declare_function venv) funs;
-  List.iter (define_function venv) funs;
-  venv
+  let venv = List.fold_left declare_function venv funs in
+  let body, t = type_exp tenv venv inloop e in
+  Cletrec (List.map (define_function venv) funs, body), t
 
 (** Translation of programs *)
 
 let base_venv () =
-  let prims = [
-    "print",      [TIGstring],                  TIGvoid,    Pprint;
-    "printi",     [TIGint],                     TIGvoid,    Pprinti;
-    "flush",      [],                           TIGvoid,    Pflush;
-    "getchar",    [],                           TIGstring,  Pgetchar;
-    "ord",        [TIGstring],                  TIGint,     Pord;
-    "chr",        [TIGint],                     TIGstring,  Pchr;
-    "size",       [TIGstring],                  TIGint,     Psize;
-    "substring",  [TIGstring; TIGint; TIGint],  TIGstring,  Psubstring;
-    "concat",     [TIGstring; TIGstring],       TIGstring,  Pconcat;
-    "not",        [TIGint],                     TIGint,     Pnot;
-    "exit",       [TIGint],                     TIGvoid,    Pexit ] in
-  let venv = Env.create () in
-  List.iter (fun (name, ts, t, p) ->
-    Env.add_primitive venv name (ts, t) p) prims;
-  venv
+  let prims =
+    [
+      "print",      [TIGstring],                  TIGvoid,    Pprint;
+      "printi",     [TIGint],                     TIGvoid,    Pprinti;
+      "flush",      [],                           TIGvoid,    Pflush;
+      "getchar",    [],                           TIGstring,  Pgetchar;
+      "ord",        [TIGstring],                  TIGint,     Pord;
+      "chr",        [TIGint],                     TIGstring,  Pchr;
+      "size",       [TIGstring],                  TIGint,     Psize;
+      "substring",  [TIGstring; TIGint; TIGint],  TIGstring,  Psubstring;
+      "concat",     [TIGstring; TIGstring],       TIGstring,  Pconcat;
+      "not",        [TIGint],                     TIGint,     Pnot;
+      "exit",       [TIGint],                     TIGvoid,    Pexit;
+    ]
+  in
+  List.fold_left (fun venv (name, ts, t, p) ->
+      Env.add_primitive venv name ts t p
+    ) Env.empty prims
 
 let error_message = function
   | Unbound_variable x -> Printf.sprintf "undefined variable '%s'" x
@@ -484,10 +473,8 @@ let transl_program e =
   try
     let venv = base_venv () in
     let e, _ = type_exp base_tenv venv false e in
-    let max_static_depth = Env.max_static_depth venv in
-    let frame_size = Env.frame_size venv in
     Printcode.print_code Format.std_formatter e;
-    max_static_depth, frame_size, e
+    e
   with
     Error(p, reason) ->
       raise (Error.Error(p, error_message reason))

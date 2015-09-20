@@ -23,8 +23,6 @@
 open Types
 open Code
 
-module StringMap = Map.Make(String)
-
 type function_desc =
   | User
   | Builtin of primitive
@@ -35,29 +33,16 @@ type function_info =
     fn_signature : tiger_type list * tiger_type
   }
 
-type symbol_info =
-  | Svariable of tiger_type
-  | Sfunction of function_info
+type env
 
-type env = symbol_info StringMap.t
+val empty : env
 
-let empty = StringMap.empty
+val add_variable : env -> string -> tiger_type -> env
 
-let add_variable env name ty =
-  StringMap.add name (Svariable ty) env
+val find_variable : env -> string -> tiger_type
 
-let find_variable env name =
-  match StringMap.find name env with
-  | Svariable v -> v
-  | Sfunction _ -> raise Not_found
+val add_function : env -> string -> tiger_type list -> tiger_type -> env
 
-let add_function env name typs rty =
-  StringMap.add name (Sfunction {fn_signature = (typs, rty); fn_desc = User}) env
+val add_primitive : env -> string -> tiger_type list -> tiger_type -> primitive -> env
 
-let add_primitive env name typs rty p =
-  StringMap.add name (Sfunction {fn_signature = (typs, rty); fn_desc = Builtin p}) env
-
-let find_function env name =
-  match StringMap.find name env with
-  | Svariable _ -> raise Not_found
-  | Sfunction f -> f
+val find_function : env -> string -> function_info
