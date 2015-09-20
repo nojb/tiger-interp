@@ -216,7 +216,8 @@ and eval env funs = function
   | Cfor (id, e1, e2, e3) ->
       let v1 = eval_int env funs e1 in
       let v2 = eval_int env funs e2 in
-      let r = M.find id env in
+      let r = ref (Vint v1) in
+      let env = M.add id r env in
       let rec loop u =
         if u <= v2 then begin
           r := Vint u;
