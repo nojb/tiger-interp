@@ -204,14 +204,14 @@ and eval env funs = function
   | Cwhile (e1, e2) ->
       let rec loop v1 =
         if v1 <> 0 then begin
-            ignore (eval env funs e2);
-            loop (eval_int env funs e1)
+          ignore (eval env funs e2);
+          loop (eval_int env funs e1)
         end
       in begin try
-        loop (eval_int env funs e1);
-        Vunit
-      with
-        Break -> Vunit
+          loop (eval_int env funs e1);
+          Vunit
+        with
+          Break -> Vunit
       end
   | Cfor (id, e1, e2, e3) ->
       let v1 = eval_int env funs e1 in
