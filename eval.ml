@@ -204,7 +204,7 @@ and eval env funs = function
   | Cwhile (e1, e2) ->
       let rec loop v1 =
         if v1 <> 0 then begin
-          ignore (eval env funs e2);
+          let (_ : value) = eval env funs e2 in
           loop (eval_int env funs e1)
         end
       in begin try
@@ -220,7 +220,7 @@ and eval env funs = function
       let rec loop u =
         if u <= v2 then begin
           r := Vint u;
-          ignore (eval env funs e3);
+          let (_ : value) = eval env funs e3 in
           loop (u + 1)
         end
       in
