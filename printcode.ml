@@ -59,11 +59,12 @@ let rec value ppf = function
         Array.iter (fun v -> fprintf ppf "@ %a" value v) va in
       fprintf ppf "@[<2>#(%a)@]" values va
 
-let to_be_printed = ref []
-
-let save_for_later p =
-  if not (List.mem_assq p !to_be_printed) then
-    to_be_printed := (p, ref false) :: !to_be_printed
+let pp_list pp ppf = function
+  | [] -> ()
+  | [x] -> pp ppf x
+  | x :: xs ->
+      fprintf ppf "%a" pp x;
+      List.iter (fprintf ppf "@ %a" pp) xs
 
 let rec code ppf = function
   | Cquote v ->
@@ -95,10 +96,13 @@ let rec code ppf = function
         (string_of_comparison cmp) code c1 code c2
   | Ccall (p, ca) ->
       let args ppf ca = List.iter (fun a -> fprintf ppf "@ %a" code a) ca in
-      save_for_later p;
       fprintf ppf "@[<2>(%s%a)@]" p args ca
-  | Cseq (c1, c2) ->
-      fprintf ppf "@[<2>(seq@[<hv>@ %a@ %a@])@]" code c1 code c2
+  | Cseq _ as c ->
+      let rec seq ppf = function
+        | Cseq (c1, c2) -> fprintf ppf "%a@ %a" seq c1 seq c2
+        | c -> code ppf c
+      in
+      fprintf ppf "@[<2>(seq@ %a)@]" seq c
   | Cmakearray (c1, c2) ->
       fprintf ppf "@[<2>(makearray@ %a@ %a)@]" code c1 code c2
   | Cmakerecord ca ->
@@ -115,10 +119,19 @@ let rec code ppf = function
   | Cprim (p, ca) ->
       let codes ppf args = List.iter (fun a -> fprintf ppf "@ %a" code a) args in
       fprintf ppf "@[<2>(%s%a)@]" (string_of_primitive p) codes ca
-  | Cletrec (_, _) ->
-      assert false
+  | Cletrec (funs, e) ->
+      let pp_fun ppf (name, args, body) =
+        fprintf ppf "@[<2>%s@ (%a)@ %a@]" name (pp_list Format.pp_print_string) args code body
+      in
+      fprintf ppf "@[<2>(letrec (%a)@ %a)@]" (pp_list pp_fun) funs code e
   | Clet (id, e1, e2) ->
-      fprintf ppf "@[<2>let %s =@ %a@ in@ %a@]" id code e1 code e2
+      let rec aux ppf = function
+        | Clet (id, e1, e2) ->
+            fprintf ppf "@ %s@ %a%a" id code e1 aux e2
+        | c ->
+            fprintf ppf ")@ %a" code c
+      in
+      fprintf ppf "@[<2>(let@ (%s@ %a%a@]" id code e1 aux e2
 
 let print_code ppf c =
   fprintf ppf "@[<2>%a@]@." code c;
