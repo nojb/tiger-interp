@@ -1,7 +1,7 @@
 all:
-	ocamlbuild main.byte
+	jbuilder build --dev @install
 
 clean:
-	ocamlbuild -clean
+	jbuilder clean
 
 .PHONY: all clean

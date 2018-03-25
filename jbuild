@@ -1,0 +1,8 @@
+(jbuild_version 1)
+
+(ocamlyacc (parser))
+(ocamllex (lexer))
+
+(executable
+ ((name main)
+  (public_name tigrun)))
